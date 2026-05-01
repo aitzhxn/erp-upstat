@@ -1,0 +1,187 @@
+import { Router } from 'express';
+import multer from 'multer';
+import * as path from 'path';
+import * as fs from 'fs';
+import { authenticate, type AuthRequest } from '../middleware/auth';
+import { sanitizeString } from '../middleware/sanitize';
+import { getMailboxMessages, getMailboxMessageById, markMailboxMessageAsRead, getAllowListForUser, createMailboxMessage, getPostById, getAttachmentsByMessageId, createMessageAttachment, getAttachmentById, getMessageRecipientPostId, getUnreadCountForUser, getPostsForUser, archiveMailboxMessagesBulk, deleteMailboxMessages, clearMailboxFolder, appendAuditLog } from '../db';
+
+const router = Router();
+
+const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || '';
+    const base = Buffer.from(file.originalname, 'latin1').toString('utf-8').replace(/\s+/g, '_').slice(0, 50);
+    cb(null, `att_${Date.now()}_${Math.random().toString(36).slice(2, 9)}${ext}`);
+  },
+});
+
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'text/plain',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`File type ${file.mimetype} is not allowed`));
+    }
+  },
+});
+
+/** Unread message count (across all user's boxes). */
+router.get('/unread-count', authenticate, (req: AuthRequest, res) => {
+  if (!req.user?.id) return res.json({ count: 0 });
+  const count = getUnreadCountForUser(req.user.id);
+  res.json({ count });
+});
+
+/** Get one message with full body (for view modal). User must have access (recipient or sender post). */
+router.get('/messages/:id', authenticate, (req: AuthRequest, res) => {
+  const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
+  if (!id) return res.status(400).json({ error: 'Message ID required' });
+  const msg = getMailboxMessageById(id);
+  if (!msg) return res.status(404).json({ error: 'Сообщение не найдено' });
+  const myPostIds = req.user?.id ? getPostsForUser(req.user.id).map(p => p.id) : [];
+  const canView = myPostIds.includes(msg.recipientPostId) || (msg.senderPostId != null && myPostIds.includes(msg.senderPostId));
+  if (!canView) return res.status(403).json({ error: 'Нет доступа' });
+  const attachments = getAttachmentsByMessageId(msg.id);
+  res.json({ ...msg, attachments });
+});
+
+/** Mark message as read. */
+router.patch('/messages/:id/read', authenticate, (req: AuthRequest, res) => {
+  const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
+  if (!id) return res.status(400).json({ error: 'Message ID required' });
+  markMailboxMessageAsRead(id);
+  res.json({ ok: true });
+});
+
+/** Get mailbox messages. ?postId= &folder=inbox|archive|sent. Includes attachments. */
+router.get('/', authenticate, (req: AuthRequest, res) => {
+  const postId = (req.query.postId as string) || undefined;
+  const folder = ((req.query.folder as string) || 'inbox') as 'inbox' | 'archive' | 'sent';
+  const allowed = getAllowListForUser(req.user);
+  const myPostIds = req.user?.id ? getPostsForUser(req.user.id).map(p => p.id) : [];
+  const list = getMailboxMessages({
+    postId,
+    allowedPostIds: folder === 'sent' ? undefined : allowed,
+    folder,
+    senderPostIds: folder === 'sent' ? myPostIds : undefined,
+  });
+  const withAttachments = list.map((m) => ({
+    ...m,
+    attachments: getAttachmentsByMessageId(m.id),
+  }));
+  res.json(withAttachments);
+});
+
+/** Send message to a position (recipient post). Supports file attachments via multipart/form-data. */
+router.post('/send', authenticate, upload.array('files', 10), (req: AuthRequest, res) => {
+  const { recipientPostId, senderPostId, subject, body } = req.body;
+  const files = (req as any).files as Express.Multer.File[] | undefined;
+  if (!recipientPostId || typeof recipientPostId !== 'string' || !recipientPostId.trim()) {
+    return res.status(400).json({ error: 'recipientPostId required' });
+  }
+  if (!subject || typeof subject !== 'string' || !subject.trim()) {
+    return res.status(400).json({ error: 'subject required' });
+  }
+  const post = getPostById(recipientPostId.trim());
+  if (!post) return res.status(404).json({ error: 'Должность получателя не найдена' });
+  const senderPost = senderPostId ? getPostById(String(senderPostId).trim()) : null;
+  const myPostIds = req.user?.id ? getPostsForUser(req.user.id).map(p => p.id) : [];
+  const validSender = !senderPostId || (senderPost && myPostIds.includes(senderPost.id));
+  const senderEmail = req.user?.email || 'unknown@local';
+  const created = createMailboxMessage({
+    recipientPostId: recipientPostId.trim(),
+    senderPostId: validSender && senderPost ? senderPost.id : null,
+    senderEmail,
+    subject: sanitizeString((subject || '').trim()),
+    body: sanitizeString(typeof body === 'string' ? body : ''),
+  });
+  const attachments: Array<{ id: string; filename: string; mimeType: string | null; fileSize: number | null }> = [];
+  if (files && files.length > 0) {
+    for (const f of files) {
+      const storedName = path.basename(f.path);
+      const att = createMessageAttachment({
+        messageId: created.id,
+        filename: f.originalname,
+        mimeType: f.mimetype,
+        filePath: storedName,
+        fileSize: f.size,
+      });
+      attachments.push({ id: att.id, filename: att.filename, mimeType: att.mimeType, fileSize: att.fileSize });
+    }
+  }
+  res.status(201).json({ ...created, attachments });
+});
+
+/** Download attachment. User must have access to the message (recipient post in allowed list). */
+router.get('/attachments/:id', authenticate, (req: AuthRequest, res) => {
+  const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
+  if (!id) return res.status(400).json({ error: 'Attachment ID required' });
+  const att = getAttachmentById(id);
+  if (!att) return res.status(404).json({ error: 'Вложение не найдено' });
+  const recipientPostId = getMessageRecipientPostId(att.messageId);
+  if (!recipientPostId) return res.status(404).json({ error: 'Сообщение не найдено' });
+  const allowed = getAllowListForUser(req.user);
+  const hasAccess = allowed === null || allowed.includes(recipientPostId);
+  if (!hasAccess) return res.status(403).json({ error: 'Нет доступа' });
+  const absPath = path.join(uploadsDir, att.filePath);
+  const resolvedUploadsDir = path.resolve(uploadsDir);
+  const resolvedAbsPath = path.resolve(absPath);
+  if (!resolvedAbsPath.startsWith(resolvedUploadsDir + path.sep)) {
+    return res.status(400).json({ error: 'Invalid attachment path' });
+  }
+  if (!fs.existsSync(absPath)) return res.status(404).json({ error: 'Файл не найден' });
+  res.download(absPath, att.filename, (err) => {
+    if (err && !res.headersSent) res.status(500).json({ error: 'Ошибка скачивания' });
+  });
+});
+
+/** Archive selected messages. */
+router.post('/messages/archive', authenticate, (req: AuthRequest, res) => {
+  const { ids } = req.body;
+  const idList = Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [];
+  if (idList.length === 0) return res.status(400).json({ error: 'ids required' });
+  archiveMailboxMessagesBulk(idList);
+  appendAuditLog({ entityType: 'mailbox_message', entityId: 'bulk', action: 'archive', userId: (req as any).user?.id ?? 'unknown', changes: null });
+  res.json({ ok: true });
+});
+
+/** Delete selected messages. */
+router.post('/messages/delete', authenticate, (req: AuthRequest, res) => {
+  const { ids } = req.body;
+  const idList = Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [];
+  if (idList.length === 0) return res.status(400).json({ error: 'ids required' });
+  deleteMailboxMessages(idList);
+  appendAuditLog({ entityType: 'mailbox_message', entityId: 'bulk', action: 'delete', userId: (req as any).user?.id ?? 'unknown', changes: null });
+  res.json({ ok: true });
+});
+
+/** Clear folder for post (delete all messages in folder). */
+router.post('/clear', authenticate, (req: AuthRequest, res) => {
+  const { postId, folder } = req.body;
+  if (!postId || typeof postId !== 'string') return res.status(400).json({ error: 'postId required' });
+  const f = (folder === 'sent' || folder === 'archive') ? folder : 'inbox';
+  const myPostIds = req.user?.id ? getPostsForUser(req.user.id).map(p => p.id) : [];
+  if (!myPostIds.includes(postId)) return res.status(403).json({ error: 'Нет доступа' });
+  const deleted = clearMailboxFolder(postId, f);
+  appendAuditLog({ entityType: 'mailbox_message', entityId: 'bulk', action: 'delete', userId: (req as any).user?.id ?? 'unknown', changes: null });
+  res.json({ deleted });
+});
+
+export default router;
