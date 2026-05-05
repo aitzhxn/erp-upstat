@@ -23,7 +23,6 @@ import {
   postHasChildren,
   appendAuditLog,
   getAllowListForUser,
-  getAdminAssignedAt,
   getAdminPostIdForUser,
   getAdminPostIds,
 } from '../db';
@@ -79,18 +78,19 @@ router.post('/users/:id/make-admin', authenticate, requireRole('Admin'), (req: A
   return res.status(400).json({ error: 'Нет свободной должности администратора. Обратитесь к разработчику.' });
 });
 
-/** Убрать роль администратора у пользователя. Только админ со старшинством может снять более нового админа. */
+/** Убрать роль администратора у пользователя. Любой админ может снять другого админа (не себя). */
 router.post('/users/:id/remove-admin', authenticate, requireRole('Admin'), (req: AuthRequest, res) => {
   const targetId = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0];
   if (!targetId) return res.status(400).json({ error: 'User ID required' });
   if (targetId === req.user?.id) return res.status(400).json({ error: 'Нельзя снять админа с самого себя' });
-  const targetAdminPostId = getAdminPostIdForUser(targetId);
-  if (!targetAdminPostId) return res.status(400).json({ error: 'Пользователь не является администратором' });
-  const requesterAt = getAdminAssignedAt(req.user!.id);
-  const targetAt = getAdminAssignedAt(targetId);
-  if (!requesterAt || !targetAt) return res.status(403).json({ error: 'Нет прав для этого действия' });
-  if (requesterAt >= targetAt) return res.status(403).json({ error: 'Снять админа может только администратор со старшинством (назначенный раньше)' });
-  dbVacatePost(targetAdminPostId);
+  if (!getAdminPostIdForUser(targetId)) {
+    return res.status(400).json({ error: 'Пользователь не является администратором' });
+  }
+  while (true) {
+    const adminPostId = getAdminPostIdForUser(targetId);
+    if (!adminPostId) break;
+    dbVacatePost(adminPostId);
+  }
   appendAuditLog({ entityType: 'user', entityId: targetId, action: 'remove_admin', userId: req.user!.id, changes: null });
   res.json({ success: true });
 });

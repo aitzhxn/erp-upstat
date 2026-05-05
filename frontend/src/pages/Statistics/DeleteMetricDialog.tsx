@@ -52,7 +52,7 @@ export default function DeleteMetricDialog({ isOpen, onClose, onSuccess, metrics
         ) : (
           <>
             {error && (
-              <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-md">
+              <div className="rounded-md border border-primary/20 bg-primarySoft p-3 text-sm text-primary">
                 {error}
               </div>
             )}
@@ -65,7 +65,7 @@ export default function DeleteMetricDialog({ isOpen, onClose, onSuccess, metrics
                 id="delete-metric-code"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="w-full px-3 py-2 bg-surface border border-border rounded-md text-textPrimary"
+                className="select-std"
                 disabled={loading}
               >
                 <option value="">— выбрать —</option>
@@ -81,7 +81,7 @@ export default function DeleteMetricDialog({ isOpen, onClose, onSuccess, metrics
               <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>
                 Отмена
               </Button>
-              <Button type="submit" className="bg-red-600 text-white hover:bg-red-700" disabled={loading || !code}>
+              <Button type="submit" variant="primary" disabled={loading || !code}>
                 {loading ? 'Удаление...' : 'Удалить'}
               </Button>
             </div>

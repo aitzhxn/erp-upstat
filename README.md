@@ -113,10 +113,12 @@ npm run dev
 ### Backend (.env)
 ```
 PORT=3001
-JWT_SECRET=your-secret-key-here
+JWT_SECRET=erp-upstat-dev-change-me-in-production-32chars
 NODE_ENV=development
 # DATABASE_PATH=./data.db
 ```
+
+`JWT_SECRET` must be **at least 32 characters** or the server exits on startup. Docker Compose files set a long default if you omit `JWT_SECRET` in your shell / project `.env` used for interpolation; `backend/.env` alone can still contain a short value unless you copy from `.env.example`.
 
 ### Frontend
 - `VITE_API_URL` - API base URL (default: `http://localhost:3001/api`)

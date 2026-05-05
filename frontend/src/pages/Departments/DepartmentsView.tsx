@@ -334,7 +334,6 @@ export default function DepartmentsView() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
                             onClick={() => handleDelete(dept.id, dept.name)}
                             disabled={deletingId === dept.id}
                           >

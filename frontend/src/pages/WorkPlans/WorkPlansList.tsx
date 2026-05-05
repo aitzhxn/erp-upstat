@@ -54,7 +54,7 @@ function renderTextWithLinks(text: string): ReactNode {
             href={part}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:underline break-all inline-flex items-center gap-0.5 font-medium"
+            className="text-primary hover:underline break-all inline-flex items-center gap-0.5 font-medium"
           >
             {part}
             <ArrowUpRight className="w-3 h-3 flex-shrink-0" />
@@ -69,12 +69,12 @@ function renderTextWithLinks(text: string): ReactNode {
 
 function getTrackBadge(status: string): ReactNode {
   const cfg: Record<string, { label: string; cls: string }> = {
-    'on-track': { label: 'В норме',  cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
-    'at-risk':  { label: 'Под угрозой', cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
-    'overdue':  { label: 'Просрочен', cls: 'bg-red-50 text-red-700 border border-red-200' },
+    'on-track': { label: 'В норме', cls: 'border border-primary/25 bg-primarySoft text-primary' },
+    'at-risk': { label: 'Под угрозой', cls: 'border border-primary/30 bg-primary/5 text-primary' },
+    'overdue': { label: 'Просрочен', cls: 'border border-primary/40 bg-primary/10 text-primary' },
   };
   const c = cfg[status];
-  if (!c) return <span className="text-xs text-slate-500">{status}</span>;
+  if (!c) return <span className="text-xs text-textSecondary">{status}</span>;
   return <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${c.cls}`}>{c.label}</span>;
 }
 
@@ -83,11 +83,11 @@ function getTrackBadge(status: string): ReactNode {
 type WFConfig = { label: string; icon: React.ElementType; textCls: string; dotCls: string };
 
 const WF_CONFIG: Record<WorkPlanMachineState, WFConfig> = {
-  DRAFT:        { label: 'Черновик',         icon: FileText,    textCls: 'text-slate-500', dotCls: 'bg-slate-400' },
-  ASCENDING:    { label: 'На согласовании',  icon: Send,        textCls: 'text-blue-600',  dotCls: 'bg-blue-500 animate-pulse' },
-  ACTIVE:       { label: 'Согласован',        icon: CheckCircle, textCls: 'text-emerald-600', dotCls: 'bg-emerald-500' },
-  REFRACTING:   { label: 'На доработку',     icon: RefreshCw,   textCls: 'text-amber-600', dotCls: 'bg-amber-500' },
-  RESTRUCTURED: { label: 'Отклонён',          icon: XCircle,     textCls: 'text-red-600',   dotCls: 'bg-red-500' },
+  DRAFT: { label: 'Черновик', icon: FileText, textCls: 'text-textSecondary', dotCls: 'bg-textSecondary/50' },
+  ASCENDING: { label: 'На согласовании', icon: Send, textCls: 'text-primary', dotCls: 'bg-primary animate-pulse' },
+  ACTIVE: { label: 'Согласован', icon: CheckCircle, textCls: 'text-primary', dotCls: 'bg-primary' },
+  REFRACTING: { label: 'На доработку', icon: RefreshCw, textCls: 'text-primary', dotCls: 'bg-primary/70' },
+  RESTRUCTURED: { label: 'Отклонён', icon: XCircle, textCls: 'text-primary', dotCls: 'bg-primaryHover' },
 };
 
 function StatusChip({ state, compact = false }: { state: WorkPlanMachineState; compact?: boolean }) {
@@ -129,20 +129,19 @@ function JourneySteps({ state }: { state: WorkPlanMachineState }) {
               ${idx === 0 ? 'rounded-l border-l' : ''}
               ${idx === steps.length - 1 ? 'rounded-r border-r' : ''}
               ${done
-                ? 'bg-slate-900 text-white border-slate-900'
+                ? 'border-primary bg-primary text-primaryForeground'
                 : errActive
-                ? 'bg-red-50 text-red-700 border-red-200'
+                ? 'border-primary/30 bg-primary/10 text-primary'
                 : active
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-slate-400 border-slate-200'
-              }
+                ? 'border-primary bg-primary text-primaryForeground'
+                : 'border-border bg-surface text-textSecondary'}
             `}>
               {done && <Check className="w-3 h-3" />}
               {errActive && <AlertCircle className="w-3 h-3" />}
               {step.label}
             </div>
             {idx < steps.length - 1 && (
-              <div className={`w-4 h-px ${done ? 'bg-slate-900' : 'bg-slate-200'}`} />
+              <div className={`w-4 h-px ${done ? 'bg-primary' : 'bg-border'}`} />
             )}
           </div>
         );
@@ -360,33 +359,33 @@ export default function WorkPlansList() {
     <div className="space-y-0">
 
       {/* ── Page Header ── */}
-      <div className="border-b border-slate-200 bg-white px-6 py-4">
+      <div className="border-b border-border bg-surface px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-slate-900 tracking-tight">Планы работ</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-lg font-semibold text-textPrimary tracking-tight">Планы работ</h1>
+            <p className="text-sm text-textSecondary mt-0.5">
               {postIdFilter ? 'Фильтр по должности' : 'Управление рабочими планами и согласованиями'}
             </p>
           </div>
           <div className="flex items-center gap-2">
             {/* View toggle */}
-            <div className="flex items-center border border-slate-200 rounded divide-x divide-slate-200 overflow-hidden">
+            <div className="flex items-center border border-border rounded divide-x divide-border overflow-hidden">
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-slate-900 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-primary text-white' : 'bg-surface text-textSecondary hover:bg-background'}`}
               >
                 <List className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewMode('kanban')}
-                className={`p-2 transition-colors ${viewMode === 'kanban' ? 'bg-slate-900 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                className={`p-2 transition-colors ${viewMode === 'kanban' ? 'bg-primary text-white' : 'bg-surface text-textSecondary hover:bg-background'}`}
               >
                 <LayoutGrid className="w-4 h-4" />
               </button>
             </div>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 text-white text-sm font-medium rounded hover:bg-slate-800 transition-colors"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-white text-sm font-medium rounded hover:bg-primaryHover transition-colors"
             >
               <Plus className="w-4 h-4" />
               Создать план
@@ -396,7 +395,7 @@ export default function WorkPlansList() {
       </div>
 
       {/* ── Toolbar ── */}
-      <div className="border-b border-slate-200 bg-white px-6">
+      <div className="border-b border-border bg-surface px-6">
         <div className="flex items-center justify-between">
           {/* Tabs */}
           <div className="flex items-center gap-0 -mb-px">
@@ -407,14 +406,14 @@ export default function WorkPlansList() {
                 className={`
                   px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap
                   ${tab === key
-                    ? 'border-slate-900 text-slate-900'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}
+                    ? 'border-primary text-textPrimary'
+                    : 'border-transparent text-textSecondary hover:text-textPrimary hover:border-border'}
                 `}
               >
                 {label}
                 {counts[key] > 0 && (
                   <span className={`ml-2 px-1.5 py-0.5 text-xs rounded-full
-                    ${tab === key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                    ${tab === key ? 'bg-primary text-primaryForeground' : 'bg-primary/10 text-textSecondary'}`}>
                     {counts[key]}
                   </span>
                 )}
@@ -424,13 +423,13 @@ export default function WorkPlansList() {
 
           {/* Search */}
           <div className="relative py-2">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-textSecondary" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Поиск по названию..."
-              className="pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded bg-slate-50 placeholder:text-slate-400 text-slate-800 focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white w-52 transition-all"
+              className="pl-8 pr-3 py-1.5 text-sm border border-border rounded bg-background placeholder:text-textSecondary text-textPrimary focus:outline-none focus:ring-1 focus:ring-primary focus:bg-surface w-52 transition-all"
             />
           </div>
         </div>
@@ -438,24 +437,24 @@ export default function WorkPlansList() {
 
       {/* ── Content ── */}
       {viewMode === 'list' ? (
-        <div className="bg-white border-b border-slate-200">
+        <div className="bg-surface border-b border-border">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="text-left px-6 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Название</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Отдел</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Статус</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Исполнение</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Срок</th>
+              <tr className="border-b border-border bg-background">
+                <th className="text-left px-6 py-2.5 text-xs font-semibold text-textSecondary uppercase tracking-wider">Название</th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-textSecondary uppercase tracking-wider">Отдел</th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-textSecondary uppercase tracking-wider">Статус</th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-textSecondary uppercase tracking-wider">Исполнение</th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-textSecondary uppercase tracking-wider">Срок</th>
                 <th className="w-20 px-4 py-2.5">{' '}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center text-sm text-slate-400">
+                  <td colSpan={6} className="px-6 py-16 text-center text-sm text-textSecondary">
                     <div className="flex flex-col items-center gap-2">
-                      <div className="w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />
+                      <div className="w-5 h-5 border-2 border-border border-t-primary rounded-full animate-spin" />
                       Загрузка данных…
                     </div>
                   </td>
@@ -464,16 +463,16 @@ export default function WorkPlansList() {
                 <tr>
                   <td colSpan={6} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
-                      <div className="w-10 h-10 border border-slate-200 rounded-lg flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-slate-400" />
+                      <div className="w-10 h-10 border border-border rounded-lg flex items-center justify-center">
+                        <FileText className="w-5 h-5 text-textSecondary" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-slate-700">Планов нет</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Создайте первый план работ</p>
+                        <p className="text-sm font-medium text-textPrimary">Планов нет</p>
+                        <p className="text-xs text-textSecondary mt-0.5">Создайте первый план работ</p>
                       </div>
                       <button
                         onClick={() => setShowCreateModal(true)}
-                        className="text-xs text-blue-600 hover:underline font-medium"
+                        className="text-xs font-medium text-primary hover:underline"
                       >
                         Создать план →
                       </button>
@@ -483,14 +482,14 @@ export default function WorkPlansList() {
               ) : filtered.map((plan) => (
                 <tr
                   key={plan.id}
-                  className="group hover:bg-slate-50 cursor-pointer transition-colors"
+                  className="group hover:bg-background cursor-pointer transition-colors"
                   onClick={() => openView(plan)}
                 >
                   <td className="px-6 py-3.5">
-                    <div className="font-medium text-slate-900">{plan.title}</div>
-                    {plan.period && <div className="text-xs text-slate-400 mt-0.5">{plan.period}</div>}
+                    <div className="font-medium text-textPrimary">{plan.title}</div>
+                    {plan.period && <div className="text-xs text-textSecondary mt-0.5">{plan.period}</div>}
                   </td>
-                  <td className="px-4 py-3.5 text-slate-500">{plan.department ?? '—'}</td>
+                  <td className="px-4 py-3.5 text-textSecondary">{plan.department ?? '—'}</td>
                   <td className="px-4 py-3.5">
                     <StatusChip state={getMachineState(plan.workflowStatus)} compact />
                   </td>
@@ -499,29 +498,29 @@ export default function WorkPlansList() {
                   </td>
                   <td className="px-4 py-3.5">
                     {(plan.dueDate ?? plan.period) ? (
-                      <div className="flex items-center gap-1 text-slate-500 text-xs">
+                      <div className="flex items-center gap-1 text-textSecondary text-xs">
                         <Clock className="w-3.5 h-3.5" />
                         {formatDate(plan.dueDate ?? plan.period)}
                       </div>
-                    ) : <span className="text-slate-300">—</span>}
+                    ) : <span className="text-textSecondary/60">—</span>}
                   </td>
                   <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
                       <button
-                        className="p-1.5 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
+                        className="p-1.5 rounded hover:bg-primary/10 text-textSecondary hover:text-textPrimary transition-colors"
                         onClick={() => openEdit(plan)}
                         title="Редактировать"
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-600 transition-colors"
+                        className="rounded p-1.5 text-textSecondary transition-colors hover:bg-primarySoft hover:text-primary"
                         onClick={() => handleDelete(plan.id)}
                         title="Удалить"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                      <ChevronRight className="w-4 h-4 text-slate-300" />
+                      <ChevronRight className="w-4 h-4 text-textSecondary/60" />
                     </div>
                   </td>
                 </tr>
@@ -530,7 +529,7 @@ export default function WorkPlansList() {
           </table>
 
           {filtered.length > 0 && (
-            <div className="px-6 py-2.5 border-t border-slate-100 bg-slate-50 text-xs text-slate-400">
+            <div className="px-6 py-2.5 border-t border-border bg-background text-xs text-textSecondary">
               Показано {filtered.length} из {workPlans.length} записей
             </div>
           )}
@@ -542,32 +541,32 @@ export default function WorkPlansList() {
             const plans = filtered.filter((p) => getMachineState(p.workflowStatus) === state);
             return (
               <div key={state} className="flex flex-col">
-                <div className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded-t">
+                <div className="flex items-center justify-between px-3 py-2 bg-surface border border-border rounded-t">
                   <StatusChip state={state} />
-                  <span className="text-xs font-semibold text-slate-500 tabular-nums">{plans.length}</span>
+                  <span className="text-xs font-semibold text-textSecondary tabular-nums">{plans.length}</span>
                 </div>
-                <div className="flex-1 border border-t-0 border-slate-200 rounded-b bg-slate-50 p-2 space-y-2 min-h-[200px]">
+                <div className="flex-1 border border-t-0 border-border rounded-b bg-background p-2 space-y-2 min-h-[200px]">
                   {plans.map((plan) => (
                     <div
                       key={plan.id}
                       onClick={() => openView(plan)}
-                      className="bg-white border border-slate-200 rounded p-3 cursor-pointer hover:border-slate-400 hover:shadow-sm transition-all group"
+                      className="group cursor-pointer rounded border border-border bg-surface p-3 transition-all hover:border-primary/30 hover:shadow-sm"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <div className="font-medium text-sm text-slate-900 leading-snug">{plan.title}</div>
-                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-500 flex-shrink-0 mt-0.5 transition-colors" />
+                        <div className="font-medium text-sm text-textPrimary leading-snug">{plan.title}</div>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-textSecondary/60 group-hover:text-textSecondary flex-shrink-0 mt-0.5 transition-colors" />
                       </div>
-                      {plan.department && <div className="text-xs text-slate-400 mt-1">{plan.department}</div>}
+                      {plan.department && <div className="text-xs text-textSecondary mt-1">{plan.department}</div>}
                       <div className="flex items-center justify-between mt-2">
                         {getTrackBadge(plan.status)}
                         {(plan.dueDate ?? plan.period) && (
-                          <span className="text-xs text-slate-400">{formatDate(plan.dueDate ?? plan.period)}</span>
+                          <span className="text-xs text-textSecondary">{formatDate(plan.dueDate ?? plan.period)}</span>
                         )}
                       </div>
                     </div>
                   ))}
                   {plans.length === 0 && (
-                    <div className="flex items-center justify-center h-20 text-xs text-slate-400 border border-dashed border-slate-200 rounded">
+                    <div className="flex items-center justify-center h-20 text-xs text-textSecondary border border-dashed border-border rounded">
                       Нет планов
                     </div>
                   )}
@@ -582,7 +581,7 @@ export default function WorkPlansList() {
       <Modal isOpen={!!viewPlanId} onClose={closeView} title={workPlanHook.plan?.title ?? 'План работ'} size="lg">
         {workPlanHook.loading ? (
           <div className="flex justify-center py-12">
-            <div className="w-5 h-5 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-border border-t-primary rounded-full animate-spin" />
           </div>
         ) : workPlanHook.plan ? (
           <WorkPlanDetail
@@ -601,7 +600,7 @@ export default function WorkPlansList() {
             onDelete={() => { closeView(); handleDelete(workPlanHook.plan!.id); }}
           />
         ) : (
-          <p className="text-sm text-slate-500 py-8 text-center">Не удалось загрузить план</p>
+          <p className="text-sm text-textSecondary py-8 text-center">Не удалось загрузить план</p>
         )}
       </Modal>
 
@@ -614,30 +613,30 @@ export default function WorkPlansList() {
       >
         {submitPlan && (
           <div className="space-y-4">
-            <p className="text-sm text-slate-600">Выберите руководителя для направления плана на согласование.</p>
+            <p className="text-sm text-textSecondary">Выберите руководителя для направления плана на согласование.</p>
             {submitAncestors.length > 0 ? (
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5 uppercase tracking-wide">Получатель</label>
+                <label className="block text-xs font-medium text-textPrimary mb-1.5 uppercase tracking-wide">Получатель</label>
                 <select
                   value={submitApproverId}
                   onChange={(e) => setSubmitApproverId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                  className="w-full px-3 py-2 text-sm border border-border rounded bg-surface text-textPrimary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   {submitAncestors.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
                 </select>
               </div>
             ) : (
-              <p className="text-sm text-slate-400 italic">Нет вышестоящих должностей.</p>
+              <p className="text-sm text-textSecondary italic">Нет вышестоящих должностей.</p>
             )}
             <div className="flex justify-end gap-2 pt-1">
               <button onClick={() => { setSubmitPlan(null); setSubmitAncestors([]); setSubmitApproverId(''); }}
-                className="px-3.5 py-2 text-sm border border-slate-200 rounded text-slate-700 hover:bg-slate-50 transition-colors">
+                className="px-3.5 py-2 text-sm border border-border rounded text-textPrimary hover:bg-background transition-colors">
                 Отмена
               </button>
               <button
                 disabled={submitAncestors.length === 0 || !submitApproverId}
                 onClick={() => handleElevate(submitPlan.id, submitApproverId)}
-                className="px-3.5 py-2 text-sm bg-slate-900 text-white rounded hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                className="px-3.5 py-2 text-sm bg-primary text-white rounded hover:bg-primaryHover disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
               >
                 <Send className="w-3.5 h-3.5" />Отправить
               </button>
@@ -669,19 +668,19 @@ export default function WorkPlansList() {
                 {createAncestors.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
               </select>
             ) : (
-              <p className="text-sm text-slate-400 italic py-2">
+              <p className="text-sm text-textSecondary italic py-2">
                 {formPostId ? 'Загрузка…' : 'Сначала выберите должность'}
               </p>
             )}
           </Field>
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
             <button onClick={() => setShowCreateModal(false)}
-              className="px-3.5 py-2 text-sm border border-slate-200 rounded text-slate-700 hover:bg-slate-50 transition-colors">
+              className="px-3.5 py-2 text-sm border border-border rounded text-textPrimary hover:bg-background transition-colors">
               Отмена
             </button>
             <button
               disabled={!formTitle.trim() || !formPostId || createAncestors.length === 0 || !createApproverId || formSubmitting}
-              className="px-3.5 py-2 text-sm bg-slate-900 text-white rounded hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+              className="px-3.5 py-2 text-sm bg-primary text-white rounded hover:bg-primaryHover disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
               onClick={async () => {
                 if (!formTitle.trim() || !formPostId || !createApproverId) return;
                 setFormSubmitting(true);
@@ -727,16 +726,16 @@ export default function WorkPlansList() {
       {/* ── Delete Confirm ── */}
       <Modal isOpen={!!deletePlanId} onClose={() => setDeletePlanId(null)} title="Подтверждение удаления" size="sm">
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-textSecondary">
             Вы уверены? Этот план работ будет удалён безвозвратно вместе со всеми задачами.
           </p>
           <div className="flex justify-end gap-2">
             <button onClick={() => setDeletePlanId(null)}
-              className="px-3.5 py-2 text-sm border border-slate-200 rounded text-slate-700 hover:bg-slate-50 transition-colors">
+              className="px-3.5 py-2 text-sm border border-border rounded text-textPrimary hover:bg-background transition-colors">
               Отмена
             </button>
             <button onClick={confirmDelete}
-              className="px-3.5 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700 transition-colors flex items-center gap-1.5">
+              className="flex items-center gap-1.5 rounded px-3.5 py-2 text-sm bg-primary text-primaryForeground transition-colors hover:bg-primaryHover">
               <Trash2 className="w-3.5 h-3.5" />Удалить
             </button>
           </div>
@@ -748,12 +747,12 @@ export default function WorkPlansList() {
 
 // ─── WorkPlanDetail ────────────────────────────────────────────────────────
 
-const INPUT_CLS = 'w-full px-3 py-2 text-sm border border-slate-200 rounded text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-900 transition-all';
+const INPUT_CLS = 'input-std';
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">{label}</label>
+      <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-textSecondary">{label}</label>
       {children}
     </div>
   );
@@ -789,7 +788,7 @@ function WorkPlanDetail({
 
       {/* Error */}
       {error && (
-        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+        <div className="flex items-start gap-2 rounded border border-primary/20 bg-primarySoft p-3 text-sm text-primary">
           <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           {error}
         </div>
@@ -803,20 +802,20 @@ function WorkPlanDetail({
           { label: 'Срок',      value: formatDate(plan.dueDate) },
           { label: 'Должность', value: plan.postId },
         ].map(({ label, value }) => (
-          <div key={label} className="border border-slate-200 rounded p-3">
-            <div className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">{label}</div>
-            <div className="text-sm text-slate-900 font-medium">{value ?? '—'}</div>
+          <div key={label} className="border border-border rounded p-3">
+            <div className="text-xs text-textSecondary font-medium uppercase tracking-wide mb-1">{label}</div>
+            <div className="text-sm text-textPrimary font-medium">{value ?? '—'}</div>
           </div>
         ))}
       </div>
 
       {/* Message / link */}
       {planEx.messageText && (
-        <div className="border border-slate-200 rounded p-3">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium uppercase tracking-wide mb-2">
+        <div className="border border-border rounded p-3">
+          <div className="flex items-center gap-1.5 text-xs text-textSecondary font-medium uppercase tracking-wide mb-2">
             <MessageSquare className="w-3.5 h-3.5" />Сообщение / ссылка
           </div>
-          <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+          <p className="text-sm text-textPrimary whitespace-pre-wrap leading-relaxed">
             {renderTextWithLinks(planEx.messageText)}
           </p>
         </div>
@@ -826,8 +825,8 @@ function WorkPlanDetail({
       {plan.rejectionComment && (
         <div className={`flex items-start gap-2 p-3 rounded border text-sm
           ${machineState === 'REFRACTING'
-            ? 'bg-amber-50 border-amber-200 text-amber-800'
-            : 'bg-red-50 border-red-200 text-red-800'}
+            ? 'border-primary/25 bg-primary/5 text-primary'
+            : 'border-primary/30 bg-primary/10 text-primary'}
         `}>
           <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <div>
@@ -841,7 +840,7 @@ function WorkPlanDetail({
 
       {/* Approval comment */}
       {planEx.approvalComment && (
-        <div className="flex items-start gap-2 p-3 border border-emerald-200 bg-emerald-50 rounded text-sm text-emerald-800">
+        <div className="flex items-start gap-2 rounded border border-primary/20 bg-primarySoft p-3 text-sm text-primary">
           <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <div><strong className="font-semibold">Комментарий при согласовании:</strong> {planEx.approvalComment}</div>
         </div>
@@ -849,19 +848,19 @@ function WorkPlanDetail({
 
       {/* Tasks */}
       {plan.tasks && plan.tasks.length > 0 && (
-        <div className="border border-slate-200 rounded overflow-hidden">
-          <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+        <div className="border border-border rounded overflow-hidden">
+          <div className="px-3 py-2 bg-background border-b border-border text-xs font-semibold text-textSecondary uppercase tracking-wide">
             Задачи ({plan.tasks.length})
           </div>
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-border">
             {plan.tasks.map((t, i) => (
               <div key={t.id} className="flex items-center justify-between px-3 py-2.5 text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400 tabular-nums w-5">{i + 1}.</span>
-                  <span className="text-slate-800">{t.title}</span>
+                  <span className="text-xs text-textSecondary tabular-nums w-5">{i + 1}.</span>
+                  <span className="text-textPrimary">{t.title}</span>
                 </div>
                 {t.dueDate && (
-                  <span className="text-xs text-slate-400">{formatDate(t.dueDate)}</span>
+                  <span className="text-xs text-textSecondary">{formatDate(t.dueDate)}</span>
                 )}
               </div>
             ))}
@@ -870,22 +869,22 @@ function WorkPlanDetail({
       )}
 
       {/* Action bar */}
-      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
         {permissions.canEdit && (
           <button onClick={onEdit}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-slate-200 rounded text-slate-700 hover:bg-slate-50 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded text-textPrimary hover:bg-background transition-colors">
             <Pencil className="w-3.5 h-3.5" />Редактировать
           </button>
         )}
         {permissions.canSubmit && (
           <button onClick={onSubmitClick}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-slate-900 text-white rounded hover:bg-slate-800 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded hover:bg-primaryHover transition-colors">
             <Send className="w-3.5 h-3.5" />Отправить на согласование
           </button>
         )}
         {permissions.canDelete && (
           <button onClick={onDelete}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-slate-200 rounded text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors ml-auto">
+            className="ml-auto flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm text-textSecondary transition-colors hover:border-primary/25 hover:bg-primarySoft hover:text-primary">
             <Trash2 className="w-3.5 h-3.5" />Удалить
           </button>
         )}
@@ -893,9 +892,9 @@ function WorkPlanDetail({
 
       {/* Decision panel */}
       {permissions.canApprove && (
-        <div className="border border-slate-200 rounded overflow-hidden">
-          <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Решение руководителя</p>
+        <div className="border border-border rounded overflow-hidden">
+          <div className="px-4 py-2.5 bg-background border-b border-border">
+            <p className="text-xs font-semibold text-textSecondary uppercase tracking-wide">Решение руководителя</p>
           </div>
           <div className="p-4 space-y-3">
             <textarea
@@ -907,21 +906,21 @@ function WorkPlanDetail({
             />
             <div className="flex items-center gap-2">
               <button onClick={onLift} disabled={actionLoading}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-sm bg-emerald-700 text-white rounded hover:bg-emerald-800 disabled:opacity-40 transition-colors">
+                className="flex items-center gap-1.5 rounded px-3.5 py-2 text-sm bg-primary text-primaryForeground transition-colors hover:bg-primaryHover disabled:opacity-40">
                 <Check className="w-3.5 h-3.5" />Согласовать
               </button>
               <button onClick={onRefract} disabled={!commentTrim || actionLoading}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-sm border border-amber-300 bg-amber-50 text-amber-800 rounded hover:bg-amber-100 disabled:opacity-40 transition-colors">
+                className="flex items-center gap-1.5 rounded border border-primary/25 bg-primarySoft px-3.5 py-2 text-sm text-primary transition-colors hover:border-primary/40 hover:bg-primary/10 disabled:opacity-40">
                 <RefreshCw className="w-3.5 h-3.5" />На доработку
               </button>
               <button onClick={onRestructure} disabled={!commentTrim || actionLoading}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-sm border border-slate-200 text-red-600 hover:bg-red-50 hover:border-red-200 rounded disabled:opacity-40 transition-colors">
+                className="flex items-center gap-1.5 rounded border border-border px-3.5 py-2 text-sm text-textSecondary transition-colors hover:border-primary/25 hover:bg-primarySoft hover:text-primary disabled:opacity-40">
                 <X className="w-3.5 h-3.5" />Отклонить
               </button>
             </div>
             {actionLoading && (
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <div className="w-3.5 h-3.5 border border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+              <div className="flex items-center gap-2 text-xs text-textSecondary">
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border border-border border-t-primary" />
                 Обработка…
               </div>
             )}
@@ -963,7 +962,7 @@ function WorkPlanForm({
             {posts.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
           </select>
           {postId && approverLabel && (
-            <p className="mt-1 text-xs text-slate-500">Уйдёт к: <span className="font-medium text-slate-700">{approverLabel}</span></p>
+            <p className="mt-1 text-xs text-textSecondary">Уйдёт к: <span className="font-medium text-textPrimary">{approverLabel}</span></p>
           )}
         </Field>
         <Field label="Период">
@@ -989,15 +988,15 @@ function WorkPlanForm({
           <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={INPUT_CLS} />
         </Field>
       </div>
-      <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+      <div className="flex justify-end gap-2 pt-2 border-t border-border">
         <button onClick={onCancel}
-          className="px-3.5 py-2 text-sm border border-slate-200 rounded text-slate-700 hover:bg-slate-50 transition-colors">
+          className="px-3.5 py-2 text-sm border border-border rounded text-textPrimary hover:bg-background transition-colors">
           Отмена
         </button>
         <button
           disabled={!title.trim() || !postId || submitting}
           onClick={() => onSave()}
-          className="px-3.5 py-2 text-sm bg-slate-900 text-white rounded hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-3.5 py-2 text-sm bg-primary text-white rounded hover:bg-primaryHover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {submitting ? 'Сохранение…' : 'Сохранить'}
         </button>

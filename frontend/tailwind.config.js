@@ -8,15 +8,22 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: '#F1F5F9',
+        /** Page canvas — very light cool white */
+        background: '#F8FAFC',
         surface: '#FFFFFF',
         border: '#E2E8F0',
         textPrimary: '#0F172A',
         textSecondary: '#64748B',
+        /** Brand blue + derived UI tokens (white/blue system) */
         primary: '#2563EB',
-        warning: '#D97706',
-        error: '#DC2626',
-        success: '#16A34A',
+        primaryForeground: '#FFFFFF',
+        primaryHover: '#1D4ED8',
+        primarySoft: '#EFF6FF',
+        primarySoftBorder: '#BFDBFE',
+        /** Muted “semantic” surfaces — still blue family for consistency */
+        warning: '#2563EB',
+        error: '#1E40AF',
+        success: '#2563EB',
         sidebar: {
           bg: '#0F172A',
           border: '#1E293B',

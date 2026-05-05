@@ -16,11 +16,11 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  Admin: 'bg-slate-800 text-slate-200',
-  Inspector: 'bg-amber-100 text-amber-800',
-  'Department Head': 'bg-blue-100 text-blue-800',
-  'Section Head': 'bg-indigo-100 text-indigo-800',
-  Employee: 'bg-slate-100 text-slate-600',
+  Admin: 'bg-primary text-white',
+  Inspector: 'bg-primarySoft text-primary border border-primarySoftBorder',
+  'Department Head': 'bg-primary/15 text-primary border border-primary/20',
+  'Section Head': 'bg-primarySoft text-primary border border-primarySoftBorder',
+  Employee: 'bg-background text-textSecondary border border-border',
 };
 
 export default function TopBar() {
@@ -59,7 +59,7 @@ export default function TopBar() {
             value={globalSearch}
             onChange={(e) => setGlobalSearch(e.target.value)}
             placeholder="Поиск по инструкциям..."
-            className="w-full pl-9 pr-3 py-1.5 bg-background border border-border rounded-md text-sm text-textPrimary placeholder:text-textSecondary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-colors"
+            className="input-std h-9 pl-9 pr-3 py-0"
           />
         </div>
       </form>
@@ -115,7 +115,7 @@ export default function TopBar() {
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-[13px] text-error hover:bg-error/5 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-[13px] text-textSecondary hover:bg-primarySoft hover:text-primary transition-colors"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     Выйти

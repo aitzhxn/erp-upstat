@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux';
 import { setUser, setToken, setOrganizations } from '@/store/slices/authSlice';
 import { signup, saveAuth } from '@/services/authService';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 const defaultOrgs = [{ id: '1', name: 'Main Organization' }];
@@ -53,47 +54,28 @@ export default function Signup() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-3 rounded-lg bg-error/10 text-error text-sm">
+              <div className="rounded-lg border border-primary/20 bg-primarySoft px-3 py-2 text-sm text-primary">
                 {error}
               </div>
             )}
             <div>
               <label className="block text-sm font-medium text-textPrimary mb-2">Имя</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary placeholder:text-textSecondary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                autoComplete="name"
-              />
+              <Input type="text" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
             </div>
             <div>
               <label className="block text-sm font-medium text-textPrimary mb-2">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary placeholder:text-textSecondary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                autoComplete="email"
-              />
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
             </div>
             <div>
               <label className="block text-sm font-medium text-textPrimary mb-2">Пароль</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary placeholder:text-textSecondary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                autoComplete="new-password"
-              />
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
             </div>
             <div>
               <label className="block text-sm font-medium text-textPrimary mb-2">Подтвердите пароль</label>
-              <input
+              <Input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary placeholder:text-textSecondary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 autoComplete="new-password"
               />
             </div>

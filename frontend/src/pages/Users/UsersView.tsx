@@ -27,7 +27,6 @@ export default function UsersView() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [removingAdminId, setRemovingAdminId] = useState<string | null>(null);
   const isAdmin = currentUser?.role === 'Admin';
-  const myAdminAssignedAt = (currentUser as { adminAssignedAt?: string } | null)?.adminAssignedAt ?? null;
 
   const load = () => {
     setLoading(true);
@@ -57,9 +56,7 @@ export default function UsersView() {
   };
 
   const canRemoveAdmin = (u: UserWithRole) =>
-    isAdmin && u.role === 'Admin' && u.id !== currentUser?.id &&
-    myAdminAssignedAt != null && u.adminAssignedAt != null &&
-    myAdminAssignedAt < u.adminAssignedAt;
+    isAdmin && u.role === 'Admin' && u.id !== currentUser?.id;
 
   const handleRemoveAdmin = async (userId: string, userName: string) => {
     if (!confirm(`Снять роль администратора с пользователя "${userName}"?`)) return;
@@ -115,7 +112,7 @@ export default function UsersView() {
       <div>
         <h1 className="text-2xl font-semibold text-textPrimary">Пользователи</h1>
         <p className="text-sm text-textSecondary mt-1">
-          Список пользователей и их ролей. «Сделать админом» — назначить роль; «Убрать админа» — снять роль (только админ со старшинством может снять того, кто стал админом позже).
+          Список пользователей и их ролей. «Сделать админом» — назначить на свободную должность администратора; «Убрать админа» — снять роль с другого администратора (не с себя).
         </p>
       </div>
 
@@ -176,7 +173,6 @@ export default function UsersView() {
                                   disabled={removingAdminId === u.id}
                                   onClick={() => handleRemoveAdmin(u.id, u.name)}
                                   title="Убрать роль администратора"
-                                  className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/20"
                                 >
                                   {removingAdminId === u.id ? '…' : <><ShieldOff className="w-4 h-4 mr-1" />Убрать админа</>}
                                 </Button>
@@ -198,7 +194,6 @@ export default function UsersView() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
                               disabled={deletingId === u.id || u.id === currentUser?.id}
                               onClick={() => handleDeleteUser(u.id, u.name)}
                               title="Удалить пользователя"

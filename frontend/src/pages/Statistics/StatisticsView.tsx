@@ -248,13 +248,13 @@ export default function StatisticsView() {
       {toastError && (
         <div
           role="alert"
-          className="flex items-center justify-between gap-4 rounded-lg border border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/50 px-4 py-3 text-sm text-red-800 dark:text-red-200"
+          className="flex items-center justify-between gap-4 rounded-lg border border-primary/20 bg-primarySoft px-4 py-3 text-sm text-primary"
         >
           <span>{toastError}</span>
           <button
             type="button"
             onClick={() => setToastError(null)}
-            className="shrink-0 rounded p-1 hover:bg-red-200/50 dark:hover:bg-red-900/50"
+            className="shrink-0 rounded p-1 hover:bg-primary/10"
             aria-label="Закрыть"
           >
             ×
@@ -275,7 +275,7 @@ export default function StatisticsView() {
             onClick={() => setActiveTab('visualizations')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === 'visualizations'
-                ? 'bg-primary text-primary-foreground'
+                ? 'bg-primary text-primaryForeground'
                 : 'text-textSecondary hover:text-textPrimary hover:bg-background'
             }`}
           >
@@ -286,7 +286,7 @@ export default function StatisticsView() {
             onClick={() => setActiveTab('data-entry')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === 'data-entry'
-                ? 'bg-primary text-primary-foreground'
+                ? 'bg-primary text-primaryForeground'
                 : 'text-textSecondary hover:text-textPrimary hover:bg-background'
             }`}
           >
@@ -313,7 +313,7 @@ export default function StatisticsView() {
                 <select
                   value={departmentFilter}
                   onChange={(e) => setDepartmentFilter(e.target.value)}
-                  className="px-3 py-1.5 bg-surface border border-border rounded-lg text-sm text-textPrimary min-w-[140px]"
+                  className="select-std min-w-[140px] w-auto h-9 py-0"
                 >
                   <option value="">Все</option>
                   {departments.map((d) => (
@@ -328,7 +328,7 @@ export default function StatisticsView() {
                 <select
                   value={responsibleFilter}
                   onChange={(e) => setResponsibleFilter(e.target.value)}
-                  className="px-3 py-1.5 bg-surface border border-border rounded-lg text-sm text-textPrimary min-w-[160px]"
+                  className="select-std min-w-[160px] w-auto h-9 py-0"
                 >
                   <option value="">Все</option>
                   {users.map((u) => (
@@ -481,8 +481,8 @@ export default function StatisticsView() {
                             weeklyGoal <= 0
                               ? 'bg-transparent'
                               : row.weekTotal < weeklyGoal
-                                ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200'
-                                : 'bg-green-50 dark:bg-green-950/20 text-green-800 dark:text-green-200';
+                                ? 'bg-primary/5 text-primary border border-primary/15'
+                                : 'bg-primarySoft text-primary border border-primary/20';
 
                           const cellKey = `${row.postId}-${row.metricCode}-${date}`;
                           const isSaving = savingCell === cellKey;
@@ -583,7 +583,7 @@ export default function StatisticsView() {
                                 type="button"
                                 onClick={() => handleDeleteRow(row)}
                                 disabled={deletingRowKey === `${row.postId}-${row.metricCode}`}
-                                className="p-2 rounded hover:bg-red-100 dark:hover:bg-red-950/50 text-textSecondary hover:text-red-600 disabled:opacity-50"
+                                className="rounded p-2 text-textSecondary hover:bg-primarySoft hover:text-primary disabled:opacity-50"
                                 title="Удалить метрику из матрицы"
                               >
                                 {deletingRowKey === `${row.postId}-${row.metricCode}` ? (
@@ -606,7 +606,7 @@ export default function StatisticsView() {
                           <select
                             value={addPostId}
                             onChange={(e) => setAddPostId(e.target.value)}
-                            className="px-2 py-1.5 bg-surface border border-border rounded text-sm min-w-[140px]"
+                            className="select-std min-w-[140px] w-auto h-9 py-0"
                           >
                             <option value="">Должность</option>
                             {posts.map((p) => (
@@ -618,7 +618,7 @@ export default function StatisticsView() {
                           <select
                             value={addMetricCode}
                             onChange={(e) => setAddMetricCode(e.target.value)}
-                            className="px-2 py-1.5 bg-surface border border-border rounded text-sm min-w-[160px]"
+                            className="select-std min-w-[160px] w-auto h-9 py-0"
                           >
                             <option value="">Метрика</option>
                             {metricsList.map((m) => (
@@ -630,7 +630,7 @@ export default function StatisticsView() {
                           <select
                             value={addResponsibleId}
                             onChange={(e) => setAddResponsibleId(e.target.value)}
-                            className="px-2 py-1.5 bg-surface border border-border rounded text-sm min-w-[140px]"
+                            className="select-std min-w-[140px] w-auto h-9 py-0"
                           >
                             <option value="">Ответственный</option>
                             {users.map((u) => (
@@ -699,7 +699,7 @@ export default function StatisticsView() {
             <Plus className="w-4 h-4 mr-2" />
             Создать определение метрики
           </Button>
-          <Button variant="outline" onClick={() => setDeleteMetricOpen(true)} className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
+          <Button variant="outline" onClick={() => setDeleteMetricOpen(true)}>
             <Trash2 className="w-4 h-4 mr-2" />
             Удалить определение метрики
           </Button>

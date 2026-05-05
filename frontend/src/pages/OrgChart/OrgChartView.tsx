@@ -36,10 +36,10 @@ function HolderAvatar({ holder, size = 'md' }: { holder: PostHolder; size?: 'sm'
 /** Card color classes (Admin can set per post). */
 const CARD_COLOR_CLASSES: Record<string, string> = {
   default: 'bg-surface border-border',
-  blue: 'bg-blue-50 border-blue-300',
-  green: 'bg-emerald-50 border-emerald-300',
-  amber: 'bg-amber-50 border-amber-300',
-  violet: 'bg-violet-50 border-violet-300',
+  blue: 'bg-primarySoft border-primarySoftBorder',
+  green: 'bg-primary/5 border-primary/25',
+  amber: 'bg-primary/10 border-primary/30',
+  violet: 'bg-primary/[0.07] border-primary/30',
 };
 
 /** Компактная карточка узла оргсхемы (один пост). */
@@ -70,7 +70,7 @@ function NodeCard({
         isSelected
           ? 'bg-primary/15 border-primary ring-2 ring-primary/30'
           : isSearchMatch
-            ? 'bg-amber-50 border-amber-400 hover:bg-amber-100'
+            ? 'border-primary/40 bg-primarySoft hover:bg-primary/10'
             : `${baseColorClass} hover:bg-background/80 hover:border-primary/40`
       }`}
     >
@@ -485,7 +485,7 @@ export default function OrgChartView() {
                 </div>
               )}
               {!loading && loadError && (
-                <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm p-4 mb-4 shrink-0">
+                <div className="mb-4 shrink-0 rounded-lg border border-primary/20 bg-primarySoft p-4 text-sm text-primary">
                   {loadError}. Показаны локальные данные.
                 </div>
               )}
@@ -631,7 +631,7 @@ export default function OrgChartView() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full justify-start text-error hover:bg-error/10"
+                        className="w-full justify-start"
                         onClick={() => setShowDeleteModal(true)}
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
@@ -651,7 +651,7 @@ export default function OrgChartView() {
                     <ProtectedAction action="edit" resource="org">
                       <Button
                         variant="outline"
-                        className="w-full text-amber-600 hover:bg-amber-50"
+                        className="w-full"
                         onClick={async () => {
                           if (!selectedPost) return;
                           try {
@@ -918,7 +918,7 @@ export default function OrgChartView() {
           </p>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setShowDeleteModal(false)}>Отмена</Button>
-            <Button variant="primary" className="bg-error hover:bg-error/90" onClick={handleDeletePost}>Удалить</Button>
+            <Button variant="primary" onClick={handleDeletePost}>Удалить</Button>
           </div>
         </div>
       </Modal>

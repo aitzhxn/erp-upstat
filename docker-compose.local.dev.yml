@@ -6,6 +6,9 @@ services:
       NODE_ENV: development
       DATABASE_PATH: /app/data/data.db
     command: npm run dev
+    healthcheck:
+      start_period: 60s
+      interval: 10s
     volumes:
       - ./backend/src:/app/src
       - ./backend/scripts:/app/scripts

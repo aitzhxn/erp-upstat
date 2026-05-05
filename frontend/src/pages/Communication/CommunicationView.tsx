@@ -303,7 +303,7 @@ export default function CommunicationView() {
                       В архив
                     </Button>
                   )}
-                  <Button variant="outline" size="sm" onClick={handleDeleteSelected} className="text-red-500 hover:bg-red-500/10">
+                  <Button variant="outline" size="sm" onClick={handleDeleteSelected}>
                     <Trash2 className="w-4 h-4 mr-1" />
                     Удалить выбранные ({selectedIds.size})
                   </Button>
@@ -328,7 +328,7 @@ export default function CommunicationView() {
                 Удалить все сообщения в «{folder === 'inbox' ? 'Входящих' : folder === 'sent' ? 'Отправленных' : 'Архиве'}» для {selectedPost?.title}?
               </p>
               <div className="flex gap-2">
-                <Button size="sm" onClick={handleClearMailbox} className="bg-red-500 hover:bg-red-600">
+                <Button size="sm" variant="primary" onClick={handleClearMailbox}>
                   Да, очистить
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setClearConfirm(false)}>
@@ -345,7 +345,7 @@ export default function CommunicationView() {
             <select
               value={composeRecipient}
               onChange={(e) => setComposeRecipient(e.target.value)}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary"
+              className="select-std"
             >
               <option value="">— Выберите должность —</option>
               {allPosts.map((p) => (
@@ -363,7 +363,7 @@ export default function CommunicationView() {
               value={composeSubject}
               onChange={(e) => setComposeSubject(e.target.value)}
               placeholder="Тема сообщения"
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary"
+              className="input-std"
             />
           </div>
           <div>
@@ -373,7 +373,7 @@ export default function CommunicationView() {
               onChange={(e) => setComposeBody(e.target.value)}
               placeholder="Текст сообщения"
               rows={4}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary min-h-[100px] resize-y"
+              className="textarea-std min-h-[100px] resize-y"
             />
           </div>
           <div>
@@ -411,7 +411,7 @@ export default function CommunicationView() {
             )}
           </div>
           {composeError && (
-            <p className="text-sm text-red-500">{composeError}</p>
+            <p className="text-sm text-primary">{composeError}</p>
           )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={closeCompose}>Отмена</Button>

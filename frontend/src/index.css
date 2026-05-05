@@ -11,6 +11,24 @@
     --textPrimary: 222, 47%, 11%;
   }
   body {
-    @apply bg-background text-textPrimary font-sans;
+    @apply bg-background text-textPrimary font-sans antialiased;
+  }
+}
+
+@layer components {
+  /** Shared field style for raw <input> outside <Input /> (e.g. search) */
+  .input-std {
+    @apply w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-textPrimary placeholder:text-textSecondary shadow-sm transition-colors;
+    @apply focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15;
+  }
+
+  .select-std {
+    @apply h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm text-textPrimary shadow-sm transition-colors;
+    @apply focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15;
+  }
+
+  .textarea-std {
+    @apply min-h-[120px] w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-textPrimary placeholder:text-textSecondary shadow-sm transition-colors;
+    @apply focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15;
   }
 }

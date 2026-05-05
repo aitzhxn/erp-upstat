@@ -116,7 +116,14 @@ function filterRows(rows: any[], code: string) {
 }
 
 function getLineColor(idx: number): string {
-  const colors = ['hsl(var(--primary))', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+  const colors = [
+    'hsl(var(--primary))',
+    '#1D4ED8',
+    '#60A5FA',
+    '#93C5FC',
+    '#2563EB',
+    '#3B82F6',
+  ];
   return colors[idx % colors.length];
 }
 
@@ -125,10 +132,17 @@ function ProgressRing({ pct, size = 64 }: { pct: number; size?: number }) {
   const r = (size - 8) / 2;
   const circ = 2 * Math.PI * r;
   const dash = Math.min(pct / 100, 1) * circ;
-  const color = pct >= 100 ? '#16a34a' : pct >= 60 ? '#d97706' : '#dc2626';
+  const color = pct >= 100 ? 'hsl(var(--primary))' : pct >= 60 ? '#3B82F6' : '#93C5FC';
   return (
     <svg width={size} height={size} className="rotate-[-90deg]">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={6} />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke="hsl(var(--border))"
+        strokeWidth={6}
+      />
       <circle
         cx={size / 2}
         cy={size / 2}
@@ -146,9 +160,9 @@ function ProgressRing({ pct, size = 64 }: { pct: number; size?: number }) {
 
 /** Горизонтальный прогресс-бар */
 function ProgressBar({ pct, className }: { pct: number; className?: string }) {
-  const color = pct >= 100 ? 'bg-green-500' : pct >= 60 ? 'bg-amber-500' : 'bg-red-500';
+  const color = pct >= 100 ? 'bg-primary' : pct >= 60 ? 'bg-primary/70' : 'bg-primary/40';
   return (
-    <div className={cn('w-full h-1.5 bg-slate-200 rounded-full overflow-hidden', className)}>
+    <div className={cn('w-full h-1.5 bg-border rounded-full overflow-hidden', className)}>
       <div
         className={cn('h-full rounded-full transition-all duration-500', color)}
         style={{ width: `${Math.min(pct, 100)}%` }}
@@ -161,10 +175,10 @@ function ProgressBar({ pct, className }: { pct: number; className?: string }) {
 function PctBadge({ pct }: { pct: number }) {
   const cls =
     pct >= 100
-      ? 'bg-green-100 text-green-700'
+      ? 'bg-primary text-primaryForeground'
       : pct >= 60
-        ? 'bg-amber-100 text-amber-700'
-        : 'bg-red-100 text-red-700';
+        ? 'bg-primarySoft text-primary border border-primarySoftBorder'
+        : 'bg-primary/10 text-primary border border-primary/25';
   return (
     <span className={cn('text-xs font-semibold px-2 py-0.5 rounded-full', cls)}>
       {pct}%
@@ -334,7 +348,7 @@ export function AnalyticsDashboard() {
                     className={cn(
                       'px-3 py-1.5 rounded text-sm font-medium transition-colors',
                       periodType === t.key
-                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        ? 'bg-primary text-primaryForeground shadow-sm'
                         : 'text-textSecondary hover:text-textPrimary hover:bg-background'
                     )}
                   >
@@ -365,7 +379,7 @@ export function AnalyticsDashboard() {
               <select
                 value={departmentId}
                 onChange={(e) => setDepartmentId(e.target.value)}
-                className="px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-[140px]"
+                className="select-std min-w-[140px] w-auto py-2"
               >
                 <option value="">Все отделы</option>
                 {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
@@ -377,7 +391,7 @@ export function AnalyticsDashboard() {
               <select
                 value={responsibleId}
                 onChange={(e) => setResponsibleId(e.target.value)}
-                className="px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-[160px]"
+                className="select-std min-w-[160px] w-auto py-2"
               >
                 <option value="">Все</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -389,7 +403,7 @@ export function AnalyticsDashboard() {
               <select
                 value={metricCode}
                 onChange={(e) => setMetricCode(e.target.value)}
-                className="px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary focus:outline-none focus:ring-2 focus:ring-primary/20 min-w-[160px]"
+                className="select-std min-w-[160px] w-auto py-2"
               >
                 <option value="">Все метрики</option>
                 {metrics.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
@@ -443,9 +457,9 @@ export function AnalyticsDashboard() {
                       <div className="flex items-center gap-2 mt-1">
                         <p className="text-3xl font-bold text-textPrimary">{planPct}%</p>
                         {planPct >= 100 ? (
-                          <TrendingUp className="w-5 h-5 text-green-600" />
+                          <TrendingUp className="w-5 h-5 text-primary" />
                         ) : (
-                          <TrendingDown className="w-5 h-5 text-amber-600" />
+                          <TrendingDown className="w-5 h-5 text-primary/70" />
                         )}
                       </div>
                       <ProgressBar pct={planPct} className="mt-2" />
@@ -468,8 +482,8 @@ export function AnalyticsDashboard() {
                       <p className="text-3xl font-bold text-textPrimary mt-1">{formatVal(totalFact)}</p>
                       <p className="text-xs text-textSecondary mt-1">За выбранный период</p>
                     </div>
-                    <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                      <Target className="w-5 h-5 text-emerald-600" />
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <Target className="w-5 h-5 text-primary" />
                     </div>
                   </div>
                 </CardContent>
@@ -485,12 +499,12 @@ export function AnalyticsDashboard() {
                       <p className="text-xs font-medium text-textSecondary uppercase tracking-wide">Лучший показатель</p>
                       <p className="text-base font-bold text-textPrimary mt-1 truncate">{bestRow.metricName}</p>
                       <p className="text-xs text-textSecondary truncate">{bestRow.postTitle}</p>
-                      <p className="text-xs font-medium text-green-600 mt-1">
+                      <p className="text-xs font-medium text-primary mt-1">
                         {Math.round((bestRow.weekTotal / bestRow.plan) * 100)}% выполнения
                       </p>
                     </div>
-                    <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
-                      <TrendingUp className="w-5 h-5 text-green-600" />
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <TrendingUp className="w-5 h-5 text-primary" />
                     </div>
                   </div>
                 </CardContent>
@@ -506,8 +520,8 @@ export function AnalyticsDashboard() {
                       </p>
                       <p className="text-xs text-textSecondary mt-1">С назначенными метриками</p>
                     </div>
-                    <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
-                      <Users className="w-5 h-5 text-violet-600" />
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <Users className="w-5 h-5 text-primary" />
                     </div>
                   </div>
                 </CardContent>
@@ -529,12 +543,12 @@ export function AnalyticsDashboard() {
                     className={cn(
                       'border-l-4 transition-shadow hover:shadow-md',
                       pct === null
-                        ? 'border-l-slate-300'
+                        ? 'border-l-border'
                         : pct >= 100
-                          ? 'border-l-green-500'
+                          ? 'border-l-primary'
                           : pct >= 60
-                            ? 'border-l-amber-500'
-                            : 'border-l-red-500'
+                            ? 'border-l-primary/60'
+                            : 'border-l-primary/35'
                     )}
                   >
                     <CardContent className="pt-4 pb-4">
@@ -603,7 +617,7 @@ export function AnalyticsDashboard() {
                         className={cn(
                           'px-3 py-1 rounded text-xs font-medium transition-colors',
                           chartType === t
-                            ? 'bg-primary text-primary-foreground'
+                            ? 'bg-primary text-primaryForeground'
                             : 'text-textSecondary hover:text-textPrimary hover:bg-background'
                         )}
                       >
@@ -696,7 +710,7 @@ export function AnalyticsDashboard() {
                       verticalAlign="top"
                       height={28}
                     />
-                    <Bar dataKey="plan" name="plan" fill="#cbd5e1" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="plan" name="plan" fill="hsl(var(--border))" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="fact" name="fact" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

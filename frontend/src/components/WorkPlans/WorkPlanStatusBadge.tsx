@@ -1,10 +1,8 @@
 /**
- * WorkPlanStatusBadge — Anti-Gravity State Visualizer
- *
- * Renders the current machine state with animated, color-coded badges.
- * Each state has a distinct visual identity and motion semantic.
+ * WorkPlanStatusBadge — статусы в единой бело-синей палитре приложения.
  */
 
+import type { ElementType } from 'react';
 import { type WorkPlanMachineState } from './useWorkPlan';
 import {
   FileEdit,
@@ -16,7 +14,7 @@ import {
 
 interface BadgeConfig {
   label: string;
-  icon: React.ElementType;
+  icon: ElementType;
   className: string;
   dotClass: string;
   animate?: 'pulse' | 'spin' | 'none';
@@ -26,41 +24,36 @@ const STATE_CONFIG: Record<WorkPlanMachineState, BadgeConfig> = {
   DRAFT: {
     label: 'Черновик',
     icon: FileEdit,
-    className:
-      'bg-zinc-800/60 text-zinc-300 border border-zinc-700/50 shadow-inner',
-    dotClass: 'bg-zinc-400',
+    className: 'border border-border bg-background text-textSecondary',
+    dotClass: 'bg-textSecondary/40',
     animate: 'none',
   },
   ASCENDING: {
     label: 'На согласовании',
     icon: SendHorizonal,
-    className:
-      'bg-sky-500/15 text-sky-300 border border-sky-500/30 shadow-[0_0_12px_rgba(14,165,233,0.15)]',
-    dotClass: 'bg-sky-400',
+    className: 'border border-primary/25 bg-primarySoft text-primary shadow-sm',
+    dotClass: 'bg-primary',
     animate: 'pulse',
   },
   ACTIVE: {
     label: 'Одобрен',
     icon: CheckCircle2,
-    className:
-      'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.15)]',
-    dotClass: 'bg-emerald-400',
+    className: 'border border-primary/30 bg-primary/10 text-primary shadow-sm',
+    dotClass: 'bg-primary',
     animate: 'none',
   },
   REFRACTING: {
     label: 'На доработку',
     icon: RefreshCw,
-    className:
-      'bg-amber-500/15 text-amber-300 border border-amber-500/30 shadow-[0_0_12px_rgba(245,158,11,0.15)]',
-    dotClass: 'bg-amber-400',
+    className: 'border border-primary/25 bg-primarySoft text-primary',
+    dotClass: 'bg-primary/70',
     animate: 'spin',
   },
   RESTRUCTURED: {
     label: 'Отклонён',
     icon: XCircle,
-    className:
-      'bg-rose-500/15 text-rose-300 border border-rose-500/30 shadow-[0_0_12px_rgba(244,63,94,0.15)]',
-    dotClass: 'bg-rose-400',
+    className: 'border border-primary/35 bg-primary/10 text-primary',
+    dotClass: 'bg-primaryHover',
     animate: 'none',
   },
 };
@@ -91,26 +84,24 @@ export function WorkPlanStatusBadge({
     config.animate === 'pulse'
       ? 'animate-pulse'
       : config.animate === 'spin'
-      ? 'animate-spin'
-      : '';
+        ? 'animate-spin'
+        : '';
 
   return (
     <span
       className={`
         inline-flex items-center rounded-full font-medium
-        transition-all duration-300 ease-out
+        transition-colors duration-200
         ${s.badge} ${config.className}
       `}
     >
-      {/* Animated state indicator dot */}
       <span
         className={`
-          rounded-full flex-shrink-0
+          flex-shrink-0 rounded-full
           ${s.dot} ${config.dotClass} ${animClass}
         `}
       />
 
-      {/* State icon */}
       <Icon
         className={`
           flex-shrink-0 ${s.icon}
@@ -119,18 +110,15 @@ export function WorkPlanStatusBadge({
         style={config.animate === 'spin' ? { animationDuration: '2s' } : undefined}
       />
 
-      {/* Label */}
       {showLabel && <span>{config.label}</span>}
     </span>
   );
 }
 
-/** Inline mini badge — icon only, for tight spaces like table rows */
 export function WorkPlanStatusDot({ state }: { state: WorkPlanMachineState }) {
   return <WorkPlanStatusBadge state={state} size="sm" showLabel={false} />;
 }
 
-/** Flow step indicator — shows the full journey */
 export function WorkPlanJourneyBar({ state }: { state: WorkPlanMachineState }) {
   const steps: WorkPlanMachineState[] = ['DRAFT', 'ASCENDING', 'ACTIVE'];
   const isError = state === 'REFRACTING' || state === 'RESTRUCTURED';
@@ -157,30 +145,29 @@ export function WorkPlanJourneyBar({ state }: { state: WorkPlanMachineState }) {
           <div key={step} className="flex items-center gap-1">
             <div
               className={`
-                w-6 h-6 rounded-full flex items-center justify-center
-                transition-all duration-500
+                flex h-6 w-6 items-center justify-center rounded-full border transition-colors
                 ${
                   isCompleted
-                    ? 'bg-emerald-500/20 border border-emerald-500/40 text-emerald-400'
+                    ? 'border-primary/35 bg-primary/15 text-primary'
                     : isCurrent
-                    ? isError
-                      ? 'bg-rose-500/20 border border-rose-500/40 text-rose-400'
-                      : `${cfg.className} scale-110`
-                    : 'bg-zinc-800/40 border border-zinc-700/30 text-zinc-600'
+                      ? isError
+                        ? 'border-primary/40 bg-primary/10 text-primary'
+                        : `${cfg.className} scale-105`
+                      : 'border-border bg-background text-textSecondary/50'
                 }
               `}
             >
               {isCurrent && isError ? (
-                <XCircle className="w-3 h-3" />
+                <XCircle className="h-3 w-3" />
               ) : (
-                <Icon className="w-3 h-3" />
+                <Icon className="h-3 w-3" />
               )}
             </div>
             {idx < steps.length - 1 && (
               <div
                 className={`
-                  h-px w-4 transition-all duration-700
-                  ${isCompleted ? 'bg-emerald-500/50' : 'bg-zinc-700/40'}
+                  h-px w-4 transition-colors
+                  ${isCompleted ? 'bg-primary/50' : 'bg-border'}
                 `}
               />
             )}

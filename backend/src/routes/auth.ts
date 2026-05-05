@@ -64,6 +64,8 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
+  const adminAssignedAt = user.role === 'Admin' ? getAdminAssignedAt(user.id) : null;
+
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role, organizationId: user.organizationId, postId: user.postId },
     getJwtSecret(),
@@ -80,6 +82,7 @@ router.post('/login', (req, res) => {
       organizationId: user.organizationId,
       organizationName: 'Main Organization',
       postId: user.postId,
+      ...(adminAssignedAt != null ? { adminAssignedAt } : {}),
     },
   });
 });

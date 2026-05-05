@@ -149,7 +149,7 @@ export default function Sidebar() {
                 {badgeCount > 0 && (
                   <span
                     className={cn(
-                      'absolute flex items-center justify-center bg-red-500 text-white font-bold rounded-full',
+                      'absolute flex items-center justify-center bg-primary text-white font-bold rounded-full ring-2 ring-sidebar-bg',
                       collapsed
                         ? '-top-1.5 -right-1.5 min-w-[16px] h-[16px] px-0.5 text-[9px]'
                         : '-top-1 -right-1.5 min-w-[16px] h-[16px] text-[9px]'
