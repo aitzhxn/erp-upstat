@@ -20,8 +20,10 @@ COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
+# initDb() reads schema from disk at runtime (not bundled by tsc)
+COPY --from=builder /app/src/schema.sql ./src/schema.sql
 
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data /app/src
 
 EXPOSE 3001
 

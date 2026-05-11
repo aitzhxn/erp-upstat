@@ -93,6 +93,59 @@ npm install
 npm run dev
 ```
 
+## Docker (production stack)
+
+The repository includes **multi-stage Dockerfiles** and a **root `docker-compose.yml`** with three services:
+
+| Service    | Role |
+|------------|------|
+| **frontend** | Nginx (`nginx:alpine`) serves the Vite build and proxies `/api/*` to the backend. |
+| **backend**  | Node.js API (Express). Persists data with **SQLite** on the `backend_data` volume (`DATABASE_PATH=/app/data/data.db`). |
+| **db**       | **PostgreSQL 16** (Alpine). The API does **not** connect to it yet; it is included for a conventional three-tier layout and future migration. Startup order: **db → backend → frontend**. |
+
+### Run everything (one command)
+
+From the **repository root** (where `docker-compose.yml` lives):
+
+```bash
+docker compose up --build -d
+```
+
+Legacy CLI (same effect):
+
+```bash
+docker-compose up --build -d
+```
+
+- App URL: **http://localhost** (port **80** → frontend container).
+- API is reached through the frontend at **`/api`** (no public backend port in the default compose file).
+
+### Environment variables
+
+Compose interpolates variables from a **`.env` file next to `docker-compose.yml`** (or from your shell). Copy the template:
+
+```bash
+cp .env.example .env
+# Edit .env — set JWT_SECRET (≥32 characters) and POSTGRES_PASSWORD
+```
+
+How variables reach containers:
+
+1. **Root `.env`** — used for `${JWT_SECRET}`, `${POSTGRES_PASSWORD}`, etc. in `docker-compose.yml`.
+2. **`backend/.env`** — loaded into the backend container via `env_file: ./backend/.env` (create from `backend/.env.example`). Values under `environment:` in compose **override** keys with the same name from that file when both are set (e.g. `JWT_SECRET`).
+
+Ensure **`JWT_SECRET`** is at least **32 characters** or the backend process exits on startup.
+
+### Useful commands
+
+```bash
+docker compose ps
+docker compose logs -f backend
+docker compose down
+```
+
+Volumes **`backend_data`** (SQLite) and **`postgres_data`** survive `docker compose down`; add `-v` to remove them.
+
 ## Design Tokens
 
 - Background: `#F8FAFC`
