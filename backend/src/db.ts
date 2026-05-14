@@ -928,7 +928,7 @@ export async function getAllowListForUser(user: { id?: string; role: string; pos
 
 /** Instructions list; optional filter by postId; optional allowedPostIds (visibility: only these posts). */
 export async function getInstructions(postId?: string, allowedPostIds?: string[] | null): Promise<Array<{ id: string; title: string; postId: string; ownerPostId: string; status: string; version: number; updatedAt: string }>> {
-  let sql = 'SELECT id, title, post_id AS postId, owner_post_id AS ownerPostId, status, version, updated_at AS updatedAt FROM instructions';
+  let sql = 'SELECT id, title, post_id AS "postId", owner_post_id AS "ownerPostId", status, version, updated_at AS "updatedAt" FROM instructions';
   const params: (string | number)[] = [];
   const conditions: string[] = [];
   if (postId) {
@@ -947,7 +947,7 @@ export async function getInstructions(postId?: string, allowedPostIds?: string[]
 
 /** Single instruction by id. */
 export async function getInstructionById(id: string): Promise<{ id: string; title: string; postId: string; ownerPostId: string; status: string; version: number; updatedAt: string } | null> {
-  const row = await get('SELECT id, title, post_id AS postId, owner_post_id AS ownerPostId, status, version, updated_at AS updatedAt FROM instructions WHERE id = ?', [id]) as any;
+  const row = await get('SELECT id, title, post_id AS "postId", owner_post_id AS "ownerPostId", status, version, updated_at AS "updatedAt" FROM instructions WHERE id = ?', [id]) as any;
   if (!row) return null;
   return { ...row, updatedAt: row.updatedAt || new Date().toISOString() };
 }
@@ -980,7 +980,7 @@ export async function deleteInstruction(id: string): Promise<void> {
 /** Instruction steps by instruction_id. */
 export async function getInstructionSteps(instructionId: string): Promise<Array<{ id: string; instructionId: string; title: string; text: string | null; link: string | null; deadline: string | null; status: string; orderIndex: number }>> {
   const rows = await all(`
-    SELECT id, instruction_id AS instructionId, title, text, link, deadline, status, order_index AS orderIndex
+    SELECT id, instruction_id AS instructionId, title, text, link, deadline, status, order_index AS "orderIndex"
     FROM instruction_steps
     WHERE instruction_id = ?
     ORDER BY order_index, id
@@ -1002,7 +1002,7 @@ export async function createInstructionStep(instructionId: string, data: { title
     data.deadline ?? null,
     data.status ?? 'pending',
     data.orderIndex ?? 0]);
-  const row = await get('SELECT id, instruction_id AS instructionId, title, text, link, deadline, status, order_index AS orderIndex FROM instruction_steps WHERE id = ?', [id]) as any;
+  const row = await get('SELECT id, instruction_id AS instructionId, title, text, link, deadline, status, order_index AS "orderIndex" FROM instruction_steps WHERE id = ?', [id]) as any;
   return { ...row, text: row.text ?? null, link: row.link ?? null, deadline: row.deadline ?? null };
 }
 
@@ -1023,7 +1023,7 @@ export async function updateInstructionStep(stepId: string, data: Partial<{ titl
 
 /** Single instruction step by id. */
 export async function getInstructionStepById(stepId: string): Promise<{ id: string; instructionId: string; title: string; text: string | null; link: string | null; deadline: string | null; status: string; orderIndex: number } | null> {
-  const row = await get('SELECT id, instruction_id AS instructionId, title, text, link, deadline, status, order_index AS orderIndex FROM instruction_steps WHERE id = ?', [stepId]) as any;
+  const row = await get('SELECT id, instruction_id AS instructionId, title, text, link, deadline, status, order_index AS "orderIndex" FROM instruction_steps WHERE id = ?', [stepId]) as any;
   if (!row) return null;
   return { ...row, text: row.text ?? null, link: row.link ?? null, deadline: row.deadline ?? null };
 }
@@ -1065,7 +1065,7 @@ export async function deleteMetricDefinition(code: string): Promise<void> {
 /** Statistics by post (post_statistics). */
 export async function getStatisticsByPostId(postId: string): Promise<Array<{ id: string; postId: string; period: string; metricCode: string; value: number }>> {
   const rows = await all(`
-    SELECT id, post_id AS postId, period, metric_code AS metricCode, value
+    SELECT id, post_id AS "postId", period, metric_code AS "metricCode", value
     FROM post_statistics WHERE post_id = ?
   `, [postId]) as any[];
   return rows;
@@ -1079,8 +1079,8 @@ export async function getStatisticsRecords(filters: {
   allowedPostIds?: string[] | null;
 }): Promise<Array<{ id: string; postId: string; postTitle: string; holderName: string | null; period: string; metricCode: string; value: number; createdAt: string }>> {
   let sql = `
-    SELECT s.id, s.post_id AS postId, p.title AS postTitle, u.name AS holderName,
-           s.period, s.metric_code AS metricCode, s.value, s.created_at AS createdAt
+    SELECT s.id, s.post_id AS "postId", p.title AS postTitle, u.name AS holderName,
+           s.period, s.metric_code AS "metricCode", s.value, s.created_at AS "createdAt"
     FROM post_statistics s
     JOIN posts p ON p.id = s.post_id
     LEFT JOIN users u ON u.post_id = p.id
@@ -1130,7 +1130,7 @@ export async function getQuotas(filters: {
   period?: string;
   allowedPostIds?: string[] | null;
 }): Promise<Array<{ id: string; postId: string; metricCode: string; period: string; targetValue: number }>> {
-  let sql = 'SELECT id, post_id AS postId, metric_code AS metricCode, period, target_value AS targetValue FROM statistic_quotas WHERE 1=1';
+  let sql = 'SELECT id, post_id AS "postId", metric_code AS "metricCode", period, target_value AS targetValue FROM statistic_quotas WHERE 1=1';
   const params: (string | number)[] = [];
   if (filters.postId) { sql += ' AND post_id = ?'; params.push(filters.postId); }
   if (filters.metricCode) { sql += ' AND metric_code = ?'; params.push(filters.metricCode); }
@@ -1166,10 +1166,10 @@ export async function getConstructorView(
   const allowedParams = allowedPostIds != null && allowedPostIds.length > 0 ? [...allowedPostIds] : [];
   const sql = `
     SELECT
-      pairs.post_id AS postId,
+      pairs.post_id AS "postId",
       p.title AS postTitle,
       u.name AS holderName,
-      pairs.metric_code AS metricCode,
+      pairs.metric_code AS "metricCode",
       m.name AS metricName,
       m.unit,
       COALESCE((SELECT target_value FROM statistic_quotas WHERE post_id = pairs.post_id AND metric_code = pairs.metric_code AND period = ? LIMIT 1), 0) AS quota,
@@ -1202,7 +1202,7 @@ export async function getConstructorView(
 
 /** List metric_to_post assignments; optional filters. */
 export async function getMetricToPostList(filters: { postId?: string; metricCode?: string } = {}): Promise<Array<{ postId: string; metricCode: string; responsibleUserId: string | null; dailyTarget: number | null }>> {
-  let sql = 'SELECT post_id AS postId, metric_code AS metricCode, responsible_user_id AS responsibleUserId, daily_target AS dailyTarget FROM metric_to_post WHERE 1=1';
+  let sql = 'SELECT post_id AS "postId", metric_code AS "metricCode", responsible_user_id AS "responsibleUserId", daily_target AS "dailyTarget" FROM metric_to_post WHERE 1=1';
   const params: string[] = [];
   if (filters.postId) { sql += ' AND post_id = ?'; params.push(filters.postId); }
   if (filters.metricCode) { sql += ' AND metric_code = ?'; params.push(filters.metricCode); }
@@ -1259,7 +1259,7 @@ export async function getDailyTrackingData(
   }
   const placeholders = postIds.map(() => '?').join(',');
   const assignments = await all(`
-    SELECT mtp.post_id AS postId, mtp.metric_code AS metricCode, mtp.daily_target AS dailyTarget, p.title AS postTitle, m.name AS metricName, m.unit
+    SELECT mtp.post_id AS "postId", mtp.metric_code AS "metricCode", mtp.daily_target AS "dailyTarget", p.title AS postTitle, m.name AS metricName, m.unit
     FROM metric_to_post mtp
     JOIN posts p ON p.id = mtp.post_id
     JOIN metric_definitions m ON m.code = mtp.metric_code
@@ -1325,8 +1325,8 @@ export async function getStatisticsGridData(
   }
 
   let sql = `
-    SELECT mtp.post_id AS postId, mtp.metric_code AS metricCode, mtp.daily_target AS dailyTarget, mtp.responsible_user_id AS responsibleUserId,
-           p.title AS postTitle, p.department_id AS departmentId, d.name AS departmentName,
+    SELECT mtp.post_id AS "postId", mtp.metric_code AS "metricCode", mtp.daily_target AS "dailyTarget", mtp.responsible_user_id AS "responsibleUserId",
+           p.title AS postTitle, p.department_id AS "departmentId", d.name AS departmentName,
            m.name AS metricName, m.unit,
            u.name AS responsibleUserName, u.avatar_url AS responsibleUserAvatar
     FROM metric_to_post mtp
@@ -1493,8 +1493,8 @@ export async function getStatisticsGridDataByPeriod(
   const { startDate, endDate, dates } = getDateRangeForPeriod(periodType, periodValue);
 
   let sql = `
-    SELECT mtp.post_id AS postId, mtp.metric_code AS metricCode, mtp.daily_target AS dailyTarget, mtp.responsible_user_id AS responsibleUserId,
-           p.title AS postTitle, p.department_id AS departmentId, d.name AS departmentName,
+    SELECT mtp.post_id AS "postId", mtp.metric_code AS "metricCode", mtp.daily_target AS "dailyTarget", mtp.responsible_user_id AS "responsibleUserId",
+           p.title AS postTitle, p.department_id AS "departmentId", d.name AS departmentName,
            m.name AS metricName, m.unit,
            u.name AS responsibleUserName, u.avatar_url AS responsibleUserAvatar
     FROM metric_to_post mtp
@@ -1669,7 +1669,7 @@ export async function getBudgets(responsiblePostId?: string, period?: string, al
   approvalStatus: string;
 }>> {
   let sql = `
-    SELECT b.id, b.department_id AS departmentId, b.responsible_post_id AS responsiblePostId,
+    SELECT b.id, b.department_id AS "departmentId", b.responsible_post_id AS responsiblePostId,
            b.category, b.period, b.planned, b.approved, b.spent, b.remaining, b.limits, b.approval_status AS approvalStatus,
            d.name AS department
     FROM budgets b
@@ -1691,7 +1691,7 @@ export async function getBudgets(responsiblePostId?: string, period?: string, al
 /** Single budget by id. */
 export async function getBudgetById(id: string): Promise<{ id: string; departmentId: string; department?: string; responsiblePostId: string | null; category: string; period: string; planned: number; approved: number; spent: number; remaining: number; limits: number; approvalStatus: string } | null> {
   const row = await get(`
-    SELECT b.id, b.department_id AS departmentId, b.responsible_post_id AS responsiblePostId,
+    SELECT b.id, b.department_id AS "departmentId", b.responsible_post_id AS responsiblePostId,
            b.category, b.period, b.planned, b.approved, b.spent, b.remaining, b.limits, b.approval_status AS approvalStatus,
            d.name AS department
     FROM budgets b
@@ -1966,7 +1966,7 @@ export async function getWorkPlanNotifications(userId: string, limit?: number): 
   actorName?: string | null;
 }>> {
   const rows = await all(`
-    SELECT n.id, n.work_plan_id AS workPlanId, wp.title AS workPlanTitle, n.action, n.created_at AS createdAt, n.read, u.name AS actorName
+    SELECT n.id, n.work_plan_id AS workPlanId, wp.title AS workPlanTitle, n.action, n.created_at AS "createdAt", n.read, u.name AS actorName
     FROM work_plan_notifications n
     LEFT JOIN work_plans wp ON wp.id = n.work_plan_id
     LEFT JOIN users u ON u.id = n.actor_user_id
@@ -2168,7 +2168,7 @@ export async function getRecentAuditLog(limit: number, allowedPostIds?: string[]
 /** Audit log by post (entity_type='post', entity_id=postId). */
 export async function getAuditLogByPostId(postId: string): Promise<Array<{ id: string; entityType: string; entityId: string; action: string; userId: string; changes: string | null; createdAt: string }>> {
   const rows = await all(`
-    SELECT id, entity_type AS entityType, entity_id AS entityId, action, user_id AS userId, changes, created_at AS createdAt
+    SELECT id, entity_type AS entityType, entity_id AS entityId, action, user_id AS "userId", changes, created_at AS "createdAt"
     FROM audit_log
     WHERE entity_type = 'post' AND entity_id = ?
     ORDER BY created_at DESC
