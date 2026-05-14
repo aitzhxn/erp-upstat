@@ -19,8 +19,6 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   process.exit(1);
 }
 
-initDb();
-
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
@@ -67,6 +65,16 @@ app.get('/api/health', (req, res) => {
 
 app.use(globalErrorHandler);
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+async function start(): Promise<void> {
+  try {
+    await initDb();
+  } catch (e) {
+    console.error('FATAL: database init failed', e);
+    process.exit(1);
+  }
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+void start();

@@ -25,10 +25,10 @@ Create **`backend/.env`** from `backend/.env.example` if you do not have it yet.
 
 | Mode | What runs | Typical URLs | Database |
 |------|-------------|--------------|----------|
-| **A. Production Docker** | `docker-compose.yml` — db + backend + Nginx frontend | http://localhost (port **80**) | SQLite in Docker volume **`backend_data`** (`/app/data/data.db` in container) |
-| **B. Local Docker** | `docker-compose.local.yml` — same images, published API port | Frontend: http://localhost:**8080** (default), API: http://localhost:**3001** | Same Docker volume as A (separate volume name per compose project unless you align names) |
-| **C. Local Docker + hot reload** | B + `docker-compose.local.dev.yml` overlay | Frontend dev: http://localhost:**5173**, API: **3001** | Same pattern; bind-mounts source for live reload |
-| **D. Fully on the host** | `npm run dev` in `backend` + `frontend` | Frontend: http://localhost:**5173**, API: http://localhost:**3001** | File **`backend/data.db`** on your machine |
+| **A. Production Docker** | `docker-compose.yml` — db + backend + Nginx frontend | http://localhost (port **80**) | **PostgreSQL** in Docker volume **`postgres_data`** |
+| **B. Local Docker** | `docker-compose.local.yml` — same images, published API port | Frontend: http://localhost:**8080** (default), API: http://localhost:**3001** | **PostgreSQL** (`postgres_data`; separate volume per Compose project name unless you align names) |
+| **C. Local Docker + hot reload** | B + `docker-compose.local.dev.yml` overlay | Frontend dev: http://localhost:**5173**, API: **3001** | Same as B; bind-mounts source for live reload |
+| **D. Fully on the host** | `npm run dev` in `backend` + `frontend` | Frontend: http://localhost:**5173**, API: http://localhost:**3001** | **PostgreSQL** on the host (or remote); set **`DATABASE_URL`** in `backend/.env` |
 
 **Important:** Only **one** thing should listen on **port 3001** at a time. If **Docker** already bound **3001**, a host `npm run dev` backend will fail (or the opposite). Stop the stack that uses 3001 before switching modes.
 
@@ -57,7 +57,7 @@ Optional: copy **root** `.env.example` → `.env` for `JWT_SECRET` / `POSTGRES_P
 docker compose down
 ```
 
-To also remove named volumes (SQLite + Postgres data):
+To also remove named volumes (**Postgres** data):
 
 ```bash
 docker compose down -v
@@ -158,7 +158,7 @@ make ps-local-dev
 
 ## D. Fully on the host (no Docker for Node)
 
-Use this when you want a single **`backend/data.db`** on disk and the fastest edit cycle without containers.
+Use this when you want the fastest edit cycle without rebuilding API/frontend images. You still need **PostgreSQL** reachable from the host and **`DATABASE_URL`** in `backend/.env`.
 
 ### Start
 
@@ -205,7 +205,7 @@ In each terminal: **Ctrl+C**.
 
 3. **Host Node** left running: close those terminals or kill the **PID** from `lsof`.
 
-4. **Optional — remove local Docker volumes** (wipes SQLite in those stacks):
+4. **Optional — remove local Docker volumes** (wipes **Postgres** data for the local stack):
 
    ```bash
    make clean-local
@@ -217,16 +217,16 @@ In each terminal: **Ctrl+C**.
 
 ## Databases: Docker vs host
 
-- **Docker (modes A / B / C):** the API uses **`DATABASE_PATH=/app/data/data.db`** inside the container, backed by the **`backend_data`** volume. Inspecting **`backend/data.db` on the host** does **not** show the same data unless you copy from the volume or query inside the container.
-- **Host dev (mode D):** the API uses **`backend/data.db`** next to the backend folder (unless you set **`DATABASE_PATH`**).
+- **Docker (modes A / B / C):** the API uses **`DATABASE_URL`** pointing at the **`db`** service (see `docker-compose.local.yml` / root `docker-compose.yml`). Data lives in the **`postgres_data`** volume.
+- **Host dev (mode D):** run PostgreSQL locally (or use Docker only for `db`) and set **`DATABASE_URL`** in `backend/.env` to match.
 
-To list users **inside** the backend container (no `sqlite3` CLI in slim images):
+To list users **inside** the backend container (requires `psql` in the image — use **`db`** service instead):
 
 ```bash
-docker compose exec backend node -e "const Database=require('better-sqlite3');const db=new Database('/app/data/data.db');console.log(db.prepare('SELECT id, email FROM users').all());"
+docker compose -f docker-compose.local.yml exec db psql -U erp -d erpupstat -c "SELECT id, email FROM users LIMIT 20;"
 ```
 
-(Use **`-f docker-compose.local.yml`** if you use the local stack instead of the root file.)
+(Use **`-f docker-compose.local.yml`** for the local stack, or omit **`-f`** for the root production file.)
 
 ---
 
@@ -239,7 +239,7 @@ cd backend
 npx ts-node scripts/assign-admin-by-email.ts you@example.com
 ```
 
-In **Docker**, run the same logic **inside** the backend container against **`/app/data/data.db`**, or use a **heredoc** with **`docker compose exec -iT`** so **zsh** does not break on `!` and stdin is not a TTY. See **README** / team docs for the exact snippet.
+In **Docker**, the runtime API image does not include **`ts-node`**. Either run the same command on the **host** with a **`DATABASE_URL`** that reaches the DB (for example temporarily map **`5432:5432`** on the `db` service in a local override), or apply the equivalent change via **`psql`** inside the **`db`** container.
 
 After changing roles: **log out and log in** in the browser.
 
@@ -250,6 +250,7 @@ After changing roles: **log out and log in** in the browser.
 | Command | Purpose |
 |---------|---------|
 | `make help` | List all targets |
+| `make build` / `make up` / `make down` | Production stack (root `docker-compose.yml`) |
 | `make up-local` | Local Docker stack (build + up) |
 | `make down-local` | Stop local Docker stack |
 | `make up-local-dev` | Local Docker + hot reload |

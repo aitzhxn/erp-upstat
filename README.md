@@ -100,8 +100,20 @@ The repository includes **multi-stage Dockerfiles** and a **root `docker-compose
 | Service    | Role |
 |------------|------|
 | **frontend** | Nginx (`nginx:alpine`) serves the Vite build and proxies `/api/*` to the backend. |
-| **backend**  | Node.js API (Express). Persists data with **SQLite** on the `backend_data` volume (`DATABASE_PATH=/app/data/data.db`). |
-| **db**       | **PostgreSQL 16** (Alpine). The API does **not** connect to it yet; it is included for a conventional three-tier layout and future migration. Startup order: **db → backend → frontend**. |
+| **backend**  | Node.js API (Express). Connects to PostgreSQL via **`DATABASE_URL`** (set in Compose; overrides `backend/.env` for host/user/password). |
+| **db**       | **PostgreSQL 16** (Alpine). Data in volume **`postgres_data`**. Startup order: **db → backend → frontend**. |
+
+### VPS deploy (git pull → build → up)
+
+From the **repository root** on the server:
+
+```bash
+git pull
+make build
+make up
+```
+
+Or run **`./scripts/deploy.sh`** (same steps: `git pull`, `make build`, `make up`). Ensure **`backend/.env`** exists (copy from `backend/.env.example`) and root **`.env`** has strong **`JWT_SECRET`** and **`POSTGRES_PASSWORD`** (see `.env.example`).
 
 ### Run everything (one command)
 
@@ -109,6 +121,7 @@ From the **repository root** (where `docker-compose.yml` lives):
 
 ```bash
 docker compose up --build -d
+# or: make build && make up
 ```
 
 Legacy CLI (same effect):
@@ -144,7 +157,7 @@ docker compose logs -f backend
 docker compose down
 ```
 
-Volumes **`backend_data`** (SQLite) and **`postgres_data`** survive `docker compose down`; add `-v` to remove them.
+Volumes **`postgres_data`** survive `docker compose down`; add `-v` to remove them (wipes the database).
 
 ## Design Tokens
 
@@ -168,7 +181,7 @@ Volumes **`backend_data`** (SQLite) and **`postgres_data`** survive `docker comp
 PORT=3001
 JWT_SECRET=erp-upstat-dev-change-me-in-production-32chars
 NODE_ENV=development
-# DATABASE_PATH=./data.db
+DATABASE_URL=postgresql://erp:password@localhost:5432/erpupstat
 ```
 
 `JWT_SECRET` must be **at least 32 characters** or the server exits on startup. Docker Compose files set a long default if you omit `JWT_SECRET` in your shell / project `.env` used for interpolation; `backend/.env` alone can still contain a short value unless you copy from `.env.example`.

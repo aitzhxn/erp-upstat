@@ -15,7 +15,7 @@ export interface AuthRequest extends Request {
   };
 }
 
-export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
   const token = req.headers.authorization?.split(' ')[1];
 
   if (!token) {
@@ -30,7 +30,7 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
       organizationId: string;
       postId?: string | null;
     };
-    const dbUser = getUserById(decoded.id);
+    const dbUser = await getUserById(decoded.id);
     if (!dbUser) {
       return res.status(401).json({ error: 'User not found' });
     }

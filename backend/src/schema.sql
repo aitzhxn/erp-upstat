@@ -129,7 +129,8 @@ CREATE TABLE IF NOT EXISTS departments (
   parent_id        TEXT REFERENCES departments(id),
   manager_post_id  TEXT REFERENCES posts(id),
   organization_id  TEXT NOT NULL,
-  created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Work plans: bound to post (owner/responsible)
@@ -177,7 +178,9 @@ CREATE INDEX IF NOT EXISTS idx_users_post ON users(post_id);
 CREATE INDEX IF NOT EXISTS idx_instructions_post ON instructions(post_id);
 CREATE INDEX IF NOT EXISTS idx_statistics_post ON post_statistics(post_id);
 CREATE INDEX IF NOT EXISTS idx_work_plans_post ON work_plans(post_id);
-CREATE INDEX IF NOT EXISTS idx_mailbox_recipient ON mailbox_messages(recipient_post_id);-- Audit log: entity_type (e.g. 'post'), entity_id (e.g. post id), action, user_id, timestamp
+CREATE INDEX IF NOT EXISTS idx_mailbox_recipient ON mailbox_messages(recipient_post_id);
+
+-- Audit log: entity_type (e.g. 'post'), entity_id (e.g. post id), action, user_id, timestamp
 CREATE TABLE IF NOT EXISTS audit_log (
   id          TEXT PRIMARY KEY,
   entity_type TEXT NOT NULL,

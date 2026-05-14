@@ -29,13 +29,11 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      DATABASE_PATH: /app/data/data.db
+      DATABASE_URL: postgresql://erp:${POSTGRES_PASSWORD:-erpupstat_change_me}@db:5432/erpupstat
       # Overrides backend/.env: app requires JWT_SECRET length >= 32. Host/project .env can set JWT_SECRET; else safe local default.
       JWT_SECRET: ${JWT_SECRET:-erp-upstat-local-docker-jwt-secret-32chars-min!}
     ports:
       - "${LOCAL_API_PORT:-3001}:3001"
-    volumes:
-      - backend_data:/app/data
     depends_on:
       db:
         condition: service_healthy
@@ -68,4 +66,3 @@ services:
 
 volumes:
   postgres_data:
-  backend_data:

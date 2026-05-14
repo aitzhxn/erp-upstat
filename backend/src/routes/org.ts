@@ -35,43 +35,43 @@ function postIdFromParams(params: { id?: string | string[] }): string {
 }
 
 /** Дерево постов: все посты с информацией о занятости. Department Head / Section Head видят только своё поддерево. */
-router.get('/posts', authenticate, (req: AuthRequest, res) => {
-  const allowed = getAllowListForUser(req.user);
-  res.json(getPostsWithHolders(allowed));
+router.get('/posts', authenticate, async (req: AuthRequest, res) => {
+  const allowed = await getAllowListForUser(req.user);
+  res.json(await getPostsWithHolders(allowed));
 });
 
 /** Список всех должностей для выбора получателя сообщения. Любой авторизованный пользователь может писать любому. */
-router.get('/posts/for-recipients', authenticate, (req, res) => {
-  res.json(getPostsWithHolders(null));
+router.get('/posts/for-recipients', authenticate, async (req, res) => {
+  res.json(await getPostsWithHolders(null));
 });
 
 /** Посты текущего пользователя («мои коробки» для Communication). */
-router.get('/my-posts', authenticate, (req: AuthRequest, res) => {
+router.get('/my-posts', authenticate, async (req: AuthRequest, res) => {
   if (!req.user?.id) return res.json([]);
-  res.json(getPostsForUser(req.user.id));
+  res.json(await getPostsForUser(req.user.id));
 });
 
 /** Список пользователей (для выбора при назначении на должность). */
-router.get('/users', authenticate, (req, res) => {
-  res.json(getUsers());
+router.get('/users', authenticate, async (req, res) => {
+  res.json(await getUsers());
 });
 
 /** Список пользователей с ролями (для страницы управления — только Admin). */
-router.get('/users/with-roles', authenticate, requireRole('Admin'), (req, res) => {
-  res.json(getUsersWithRoles());
+router.get('/users/with-roles', authenticate, requireRole('Admin'), async (req, res) => {
+  res.json(await getUsersWithRoles());
 });
 
 /** Назначить пользователя администратором (на первый свободный пост с ролью Admin). */
-router.post('/users/:id/make-admin', authenticate, requireRole('Admin'), (req: AuthRequest, res) => {
+router.post('/users/:id/make-admin', authenticate, requireRole('Admin'), async (req: AuthRequest, res) => {
   const targetId = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0];
   if (!targetId) return res.status(400).json({ error: 'User ID required' });
   if (targetId === req.user?.id) return res.status(400).json({ error: 'Вы уже администратор' });
-  const adminPostIds = getAdminPostIds();
+  const adminPostIds = await getAdminPostIds();
   for (const postId of adminPostIds) {
-    const post = getPostById(postId);
+    const post = await getPostById(postId);
     if (post && !post.currentHolder) {
-      dbAssignUserToPost(postId, targetId);
-      appendAuditLog({ entityType: 'user', entityId: targetId, action: 'make_admin', userId: req.user!.id, changes: null });
+      await dbAssignUserToPost(postId, targetId);
+      await appendAuditLog({ entityType: 'user', entityId: targetId, action: 'make_admin', userId: req.user!.id, changes: null });
       return res.json({ success: true });
     }
   }
@@ -79,24 +79,24 @@ router.post('/users/:id/make-admin', authenticate, requireRole('Admin'), (req: A
 });
 
 /** Убрать роль администратора у пользователя. Любой админ может снять другого админа (не себя). */
-router.post('/users/:id/remove-admin', authenticate, requireRole('Admin'), (req: AuthRequest, res) => {
+router.post('/users/:id/remove-admin', authenticate, requireRole('Admin'), async (req: AuthRequest, res) => {
   const targetId = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0];
   if (!targetId) return res.status(400).json({ error: 'User ID required' });
   if (targetId === req.user?.id) return res.status(400).json({ error: 'Нельзя снять админа с самого себя' });
-  if (!getAdminPostIdForUser(targetId)) {
+  if (!await getAdminPostIdForUser(targetId)) {
     return res.status(400).json({ error: 'Пользователь не является администратором' });
   }
   while (true) {
-    const adminPostId = getAdminPostIdForUser(targetId);
+    const adminPostId = await getAdminPostIdForUser(targetId);
     if (!adminPostId) break;
-    dbVacatePost(adminPostId);
+    await dbVacatePost(adminPostId);
   }
-  appendAuditLog({ entityType: 'user', entityId: targetId, action: 'remove_admin', userId: req.user!.id, changes: null });
+  await appendAuditLog({ entityType: 'user', entityId: targetId, action: 'remove_admin', userId: req.user!.id, changes: null });
   res.json({ success: true });
 });
 
 /** Удалить пользователя (только Admin). */
-router.delete('/users/:id', authenticate, requireRole('Admin'), (req: AuthRequest, res) => {
+router.delete('/users/:id', authenticate, requireRole('Admin'), async (req: AuthRequest, res) => {
   const userId = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0];
   
   if (!userId) {
@@ -108,8 +108,8 @@ router.delete('/users/:id', authenticate, requireRole('Admin'), (req: AuthReques
   }
   
   try {
-    dbDeleteUser(userId);
-    appendAuditLog({
+    await dbDeleteUser(userId);
+    await appendAuditLog({
       entityType: 'user',
       entityId: userId,
       action: 'delete',
@@ -124,10 +124,10 @@ router.delete('/users/:id', authenticate, requireRole('Admin'), (req: AuthReques
 });
 
 /** Предки поста (вышестоящие должности) для выбора «кому отправить» план на согласование. */
-router.get('/posts/:id/ancestors', authenticate, (req, res) => {
+router.get('/posts/:id/ancestors', authenticate, async (req, res) => {
   const postId = postIdFromParams(req.params);
-  const ids = getAncestorPostIds(postId);
-  const all = getPostsWithHolders(null);
+  const ids = await getAncestorPostIds(postId);
+  const all = await getPostsWithHolders(null);
   const ancestors = ids.map((id) => {
     const p = all.find((x) => x.id === id);
     const label = p ? (p.currentHolder ? `${p.title} — ${p.currentHolder.name}` : p.title) : id;
@@ -137,9 +137,9 @@ router.get('/posts/:id/ancestors', authenticate, (req, res) => {
 });
 
 /** Один пост по ID (с holder или вакансия). */
-router.get('/posts/:id', authenticate, (req, res) => {
+router.get('/posts/:id', authenticate, async (req, res) => {
   const id = postIdFromParams(req.params);
-  const post = getPostById(id);
+  const post = await getPostById(id);
   if (post) {
     res.json(post);
   } else {
@@ -148,16 +148,16 @@ router.get('/posts/:id', authenticate, (req, res) => {
 });
 
 /** Создать должность. */
-router.post('/posts', authenticate, requireRole('Admin', 'Department Head'), (req: AuthRequest, res) => {
+router.post('/posts', authenticate, requireRole('Admin', 'Department Head'), async (req: AuthRequest, res) => {
   const body = req.body as Partial<PostWithHolder> & { title: string };
   const { title, parentPostId, departmentId, role, level, orderIndex, code } = body;
   if (!title || !title.trim()) {
     return res.status(400).json({ error: 'Title is required' });
   }
   const id = `p${Date.now()}`;
-  const posts = getPostsWithHolders();
+  const posts = await getPostsWithHolders();
   const parentLevel = parentPostId ? (posts.find(p => p.id === parentPostId)?.level ?? 0) + 1 : 0;
-  const newPost = dbCreatePost({
+  const newPost = await dbCreatePost({
     id,
     title: sanitizeString(title).trim(),
     description: body.description ?? '',
@@ -168,7 +168,7 @@ router.post('/posts', authenticate, requireRole('Admin', 'Department Head'), (re
     orderIndex: orderIndex ?? 0,
     code: code ?? null,
   });
-  appendAuditLog({
+  await appendAuditLog({
     entityType: 'post',
     entityId: id,
     action: 'created',
@@ -179,9 +179,9 @@ router.post('/posts', authenticate, requireRole('Admin', 'Department Head'), (re
 });
 
 /** Обновить должность (редактирование, перемещение). */
-router.put('/posts/:id', authenticate, requireRole('Admin', 'Department Head'), (req: AuthRequest, res) => {
+router.put('/posts/:id', authenticate, requireRole('Admin', 'Department Head'), async (req: AuthRequest, res) => {
   const id = postIdFromParams(req.params);
-  const post = getPostById(id);
+  const post = await getPostById(id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
   const body = req.body as Partial<PostWithHolder>;
   const updates: Record<string, any> = {};
@@ -196,32 +196,32 @@ router.put('/posts/:id', authenticate, requireRole('Admin', 'Department Head'), 
   if (body.cardNotes !== undefined) updates.cardNotes = body.cardNotes;
   if (body.parentPostId !== undefined) {
     updates.parentPostId = body.parentPostId;
-    const posts = getPostsWithHolders();
+    const posts = await getPostsWithHolders();
     updates.level = body.parentPostId
       ? (posts.find(p => p.id === body.parentPostId)?.level ?? 0) + 1
       : 0;
   }
-  dbUpdatePost(id, updates);
-  appendAuditLog({
+  await dbUpdatePost(id, updates);
+  await appendAuditLog({
     entityType: 'post',
     entityId: id,
     action: 'updated',
     userId: req.user!.id,
     changes: Object.keys(updates).length ? JSON.stringify(updates) : null,
   });
-  const updated = getPostById(id);
+  const updated = await getPostById(id);
   res.json(updated);
 });
 
 /** Удалить должность (?cascade=true — вместе с дочерними). */
-router.delete('/posts/:id', authenticate, requireRole('Admin', 'Department Head'), (req: AuthRequest, res) => {
+router.delete('/posts/:id', authenticate, requireRole('Admin', 'Department Head'), async (req: AuthRequest, res) => {
   const id = postIdFromParams(req.params);
   const cascade = (req.query.cascade as string) === 'true';
-  if (!cascade && postHasChildren(id)) {
+  if (!cascade && await postHasChildren(id)) {
     return res.status(400).json({ error: 'Post has children; use ?cascade=true to delete with children' });
   }
-  dbDeletePosts(id, cascade);
-  appendAuditLog({
+  await dbDeletePosts(id, cascade);
+  await appendAuditLog({
     entityType: 'post',
     entityId: id,
     action: 'deleted',
@@ -232,9 +232,9 @@ router.delete('/posts/:id', authenticate, requireRole('Admin', 'Department Head'
 });
 
 /** Устаревшие эндпоинты (employees/departments) — оставлены для совместимости. */
-router.get('/employees', authenticate, (req: AuthRequest, res) => {
-  const allowed = getAllowListForUser(req.user);
-  const posts = getPostsWithHolders(allowed);
+router.get('/employees', authenticate, async (req: AuthRequest, res) => {
+  const allowed = await getAllowListForUser(req.user);
+  const posts = await getPostsWithHolders(allowed);
   const employees = posts
     .filter(p => p.currentHolder != null)
     .map(p => ({
@@ -247,24 +247,24 @@ router.get('/employees', authenticate, (req: AuthRequest, res) => {
   res.json(employees);
 });
 
-router.get('/departments', authenticate, (req, res) => {
-  res.json(getDepartments());
+router.get('/departments', authenticate, async (req, res) => {
+  res.json(await getDepartments());
 });
 
-router.get('/hierarchy', authenticate, (req: AuthRequest, res) => {
-  const allowed = getAllowListForUser(req.user);
-  res.json({ posts: getPostsWithHolders(allowed) });
+router.get('/hierarchy', authenticate, async (req: AuthRequest, res) => {
+  const allowed = await getAllowListForUser(req.user);
+  res.json({ posts: await getPostsWithHolders(allowed) });
 });
 
 /** Назначить пользователя на пост. Снимает с предыдущей должности. */
-router.post('/posts/:id/assign', authenticate, requireRole('Admin', 'Department Head'), (req: AuthRequest, res) => {
+router.post('/posts/:id/assign', authenticate, requireRole('Admin', 'Department Head'), async (req: AuthRequest, res) => {
   const id = postIdFromParams(req.params);
   const { userId, name, email } = req.body;
-  const post = getPostById(id);
+  const post = await getPostById(id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
   if (userId) {
-    dbAssignUserToPost(id, userId);
-    appendAuditLog({
+    await dbAssignUserToPost(id, userId);
+    await appendAuditLog({
       entityType: 'post',
       entityId: id,
       action: 'assign',
@@ -272,29 +272,29 @@ router.post('/posts/:id/assign', authenticate, requireRole('Admin', 'Department 
       changes: JSON.stringify({ userId }),
     });
   } else {
-    dbVacatePost(id);
-    appendAuditLog({
+    await dbVacatePost(id);
+    await appendAuditLog({
       entityType: 'post',
       entityId: id,
       action: 'vacate',
       userId: req.user!.id,
     });
   }
-  const updated = getPostById(id);
+  const updated = await getPostById(id);
   // Role may have changed — instruct the client to re-fetch a fresh token
   res.setHeader('X-Token-Refresh-Required', 'true');
   res.json(updated);
 });
 
 /** Назначить сотрудника на должность (то же, что assign). */
-router.post('/posts/:id/assign-user', authenticate, requireRole('Admin', 'Department Head'), (req: AuthRequest, res) => {
+router.post('/posts/:id/assign-user', authenticate, requireRole('Admin', 'Department Head'), async (req: AuthRequest, res) => {
   const id = postIdFromParams(req.params);
   const { userId, name, email } = req.body;
-  const post = getPostById(id);
+  const post = await getPostById(id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
   if (userId) {
-    dbAssignUserToPost(id, userId);
-    appendAuditLog({
+    await dbAssignUserToPost(id, userId);
+    await appendAuditLog({
       entityType: 'post',
       entityId: id,
       action: 'assign',
@@ -302,43 +302,43 @@ router.post('/posts/:id/assign-user', authenticate, requireRole('Admin', 'Depart
       changes: JSON.stringify({ userId }),
     });
   } else {
-    dbVacatePost(id);
-    appendAuditLog({
+    await dbVacatePost(id);
+    await appendAuditLog({
       entityType: 'post',
       entityId: id,
       action: 'vacate',
       userId: req.user!.id,
     });
   }
-  const updated = getPostById(id);
+  const updated = await getPostById(id);
   // Role may have changed — instruct the client to re-fetch a fresh token
   res.setHeader('X-Token-Refresh-Required', 'true');
   res.json(updated);
 });
 
 /** Снять сотрудника с должности (сделать вакансией). */
-router.post('/posts/:id/vacate', authenticate, requireRole('Admin', 'Department Head'), (req: AuthRequest, res) => {
+router.post('/posts/:id/vacate', authenticate, requireRole('Admin', 'Department Head'), async (req: AuthRequest, res) => {
   const id = postIdFromParams(req.params);
-  const post = getPostById(id);
+  const post = await getPostById(id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
-  dbVacatePost(id);
-  appendAuditLog({
+  await dbVacatePost(id);
+  await appendAuditLog({
     entityType: 'post',
     entityId: id,
     action: 'vacate',
     userId: req.user!.id,
   });
-  const updated = getPostById(id);
+  const updated = await getPostById(id);
   res.json(updated);
 });
 
 /** Get all departments. */
-router.get('/departments', authenticate, (req, res) => {
-  res.json(getDepartments());
+router.get('/departments', authenticate, async (req, res) => {
+  res.json(await getDepartments());
 });
 
 /** Create department (Admin only). */
-router.post('/departments', authenticate, requireRole('Admin'), (req: AuthRequest, res) => {
+router.post('/departments', authenticate, requireRole('Admin'), async (req: AuthRequest, res) => {
   const { name, parentId, managerPostId } = req.body;
   
   if (!name || !name.trim()) {
@@ -348,7 +348,7 @@ router.post('/departments', authenticate, requireRole('Admin'), (req: AuthReques
   const id = `dept${Date.now()}`;
   
   try {
-    dbCreateDepartment({
+    await dbCreateDepartment({
       id,
       name: sanitizeString(name).trim(),
       parentId: parentId || null,
@@ -356,7 +356,7 @@ router.post('/departments', authenticate, requireRole('Admin'), (req: AuthReques
       organizationId: process.env.DEFAULT_ORGANIZATION_ID ?? '1',
     });
 
-    appendAuditLog({
+    await appendAuditLog({
       entityType: 'department',
       entityId: id,
       action: 'create',
@@ -364,7 +364,7 @@ router.post('/departments', authenticate, requireRole('Admin'), (req: AuthReques
       changes: JSON.stringify({ name: sanitizeString(name).trim(), parentId, managerPostId }),
     });
     
-    const created = getDepartments().find(d => d.id === id);
+    const created = (await getDepartments()).find(d => d.id === id);
     res.status(201).json(created);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Ошибка при создании отдела';
@@ -373,14 +373,14 @@ router.post('/departments', authenticate, requireRole('Admin'), (req: AuthReques
 });
 
 /** Update department (Admin only). */
-router.put('/departments/:id', authenticate, requireRole('Admin'), (req: AuthRequest, res) => {
+router.put('/departments/:id', authenticate, requireRole('Admin'), async (req: AuthRequest, res) => {
   const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0];
   
   if (!id) {
     return res.status(400).json({ error: 'Department ID is required' });
   }
   
-  const department = getDepartments().find(d => d.id === id);
+  const department = (await getDepartments()).find(d => d.id === id);
   if (!department) {
     return res.status(404).json({ error: 'Отдел не найден' });
   }
@@ -398,7 +398,7 @@ router.put('/departments/:id', authenticate, requireRole('Admin'), (req: AuthReq
 
   // Check for circular reference: new parent must not be a descendant of this dept
   if (parentId) {
-    const allDepts = getDepartments();
+    const allDepts = await getDepartments();
     const deptMap = new Map(allDepts.map(d => [d.id, d]));
     const checkCircular = (checkId: string, targetId: string): boolean => {
       const dept = deptMap.get(checkId);
@@ -413,9 +413,9 @@ router.put('/departments/:id', authenticate, requireRole('Admin'), (req: AuthReq
   }
 
   try {
-    dbUpdateDepartment(id, updates);
+    await dbUpdateDepartment(id, updates);
     
-    appendAuditLog({
+    await appendAuditLog({
       entityType: 'department',
       entityId: id,
       action: 'update',
@@ -423,7 +423,7 @@ router.put('/departments/:id', authenticate, requireRole('Admin'), (req: AuthReq
       changes: JSON.stringify(updates),
     });
     
-    const updated = getDepartments().find(d => d.id === id);
+    const updated = (await getDepartments()).find(d => d.id === id);
     res.json(updated);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Ошибка при обновлении отдела';
@@ -432,22 +432,22 @@ router.put('/departments/:id', authenticate, requireRole('Admin'), (req: AuthReq
 });
 
 /** Delete department (Admin only). */
-router.delete('/departments/:id', authenticate, requireRole('Admin'), (req: AuthRequest, res) => {
+router.delete('/departments/:id', authenticate, requireRole('Admin'), async (req: AuthRequest, res) => {
   const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0];
   
   if (!id) {
     return res.status(400).json({ error: 'Department ID is required' });
   }
   
-  const department = getDepartments().find(d => d.id === id);
+  const department = (await getDepartments()).find(d => d.id === id);
   if (!department) {
     return res.status(404).json({ error: 'Отдел не найден' });
   }
   
   try {
-    dbDeleteDepartment(id);
+    await dbDeleteDepartment(id);
     
-    appendAuditLog({
+    await appendAuditLog({
       entityType: 'department',
       entityId: id,
       action: 'delete',

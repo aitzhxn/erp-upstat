@@ -6,15 +6,15 @@ import { getBudgets, getBudgetById, approveBudget, createBudget, deleteBudget, g
 
 const router = Router();
 
-router.get('/', authenticate, (req: AuthRequest, res) => {
+router.get('/', authenticate, async (req: AuthRequest, res) => {
   const responsiblePostId = (req.query.responsiblePostId as string | undefined) || undefined;
   const period = (req.query.period as string | undefined) || undefined;
   const allowed = null; // Admin sees all; role filtering happens via responsiblePostId
-  const budgets = getBudgets(responsiblePostId, period, allowed);
+  const budgets = await getBudgets(responsiblePostId, period, allowed);
   res.json(budgets);
 });
 
-router.post('/', authenticate, requireRole('Admin', 'Department Head'), (req: AuthRequest, res) => {
+router.post('/', authenticate, requireRole('Admin', 'Department Head'), async (req: AuthRequest, res) => {
   const { departmentId, responsiblePostId, category, period, planned, limits } = req.body;
 
   if (!departmentId || !category || !period || planned == null) {
@@ -27,13 +27,13 @@ router.post('/', authenticate, requireRole('Admin', 'Department Head'), (req: Au
     return res.status(400).json({ error: 'Сумма плана должна быть положительным числом' });
   }
 
-  const depts = getDepartments();
+  const depts = await getDepartments();
   if (!depts.find(d => d.id === departmentId)) {
     return res.status(400).json({ error: 'Отдел не найден' });
   }
 
   const id = `b${Date.now()}`;
-  createBudget({
+  await createBudget({
     id,
     departmentId,
     responsiblePostId: responsiblePostId || null,
@@ -43,7 +43,7 @@ router.post('/', authenticate, requireRole('Admin', 'Department Head'), (req: Au
     limits: limitsNum,
   });
 
-  appendAuditLog({
+  await appendAuditLog({
     entityType: 'budget',
     entityId: id,
     action: 'created',
@@ -51,26 +51,26 @@ router.post('/', authenticate, requireRole('Admin', 'Department Head'), (req: Au
     changes: JSON.stringify({ departmentId, category, period, planned: plannedNum }),
   });
 
-  const created = getBudgetById(id);
+  const created = await getBudgetById(id);
   res.status(201).json(created);
 });
 
-router.post('/:id/approve', authenticate, requireRole('Admin', 'Department Head'), (req: AuthRequest, res) => {
+router.post('/:id/approve', authenticate, requireRole('Admin', 'Department Head'), async (req: AuthRequest, res) => {
   const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
-  const existing = getBudgetById(id);
+  const existing = await getBudgetById(id);
   if (!existing) return res.status(404).json({ error: 'Budget not found' });
-  approveBudget(id);
-  appendAuditLog({ entityType: 'budget', entityId: id, action: 'approved', userId: req.user!.id, changes: null });
-  const updated = getBudgetById(id);
+  await approveBudget(id);
+  await appendAuditLog({ entityType: 'budget', entityId: id, action: 'approved', userId: req.user!.id, changes: null });
+  const updated = await getBudgetById(id);
   res.json(updated);
 });
 
-router.delete('/:id', authenticate, requireRole('Admin'), (req: AuthRequest, res) => {
+router.delete('/:id', authenticate, requireRole('Admin'), async (req: AuthRequest, res) => {
   const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
-  const existing = getBudgetById(id);
+  const existing = await getBudgetById(id);
   if (!existing) return res.status(404).json({ error: 'Budget not found' });
-  deleteBudget(id);
-  appendAuditLog({ entityType: 'budget', entityId: id, action: 'deleted', userId: req.user!.id, changes: null });
+  await deleteBudget(id);
+  await appendAuditLog({ entityType: 'budget', entityId: id, action: 'deleted', userId: req.user!.id, changes: null });
   res.json({ success: true });
 });
 

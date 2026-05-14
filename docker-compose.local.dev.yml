@@ -4,7 +4,7 @@ services:
       target: builder
     environment:
       NODE_ENV: development
-      DATABASE_PATH: /app/data/data.db
+      DATABASE_URL: postgresql://erp:${POSTGRES_PASSWORD:-erpupstat_change_me}@db:5432/erpupstat
     command: npm run dev
     healthcheck:
       start_period: 60s
@@ -13,7 +13,6 @@ services:
       - ./backend/src:/app/src
       - ./backend/scripts:/app/scripts
       - ./backend/.env:/app/.env
-      - backend_data:/app/data
 
   frontend:
     build:
@@ -33,5 +32,4 @@ services:
       - ./frontend/postcss.config.js:/app/postcss.config.js
       - ./frontend/tailwind.config.js:/app/tailwind.config.js
 
-volumes:
-  backend_data:
+volumes: {}

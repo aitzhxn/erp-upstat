@@ -43,54 +43,56 @@ const upload = multer({
 });
 
 /** Unread message count (across all user's boxes). */
-router.get('/unread-count', authenticate, (req: AuthRequest, res) => {
+router.get('/unread-count', authenticate, async (req: AuthRequest, res) => {
   if (!req.user?.id) return res.json({ count: 0 });
-  const count = getUnreadCountForUser(req.user.id);
+  const count = await getUnreadCountForUser(req.user.id);
   res.json({ count });
 });
 
 /** Get one message with full body (for view modal). User must have access (recipient or sender post). */
-router.get('/messages/:id', authenticate, (req: AuthRequest, res) => {
+router.get('/messages/:id', authenticate, async (req: AuthRequest, res) => {
   const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
   if (!id) return res.status(400).json({ error: 'Message ID required' });
-  const msg = getMailboxMessageById(id);
+  const msg = await getMailboxMessageById(id);
   if (!msg) return res.status(404).json({ error: 'Сообщение не найдено' });
-  const myPostIds = req.user?.id ? getPostsForUser(req.user.id).map(p => p.id) : [];
+  const myPostIds = req.user?.id ? (await getPostsForUser(req.user.id)).map(p => p.id) : [];
   const canView = myPostIds.includes(msg.recipientPostId) || (msg.senderPostId != null && myPostIds.includes(msg.senderPostId));
   if (!canView) return res.status(403).json({ error: 'Нет доступа' });
-  const attachments = getAttachmentsByMessageId(msg.id);
+  const attachments = await getAttachmentsByMessageId(msg.id);
   res.json({ ...msg, attachments });
 });
 
 /** Mark message as read. */
-router.patch('/messages/:id/read', authenticate, (req: AuthRequest, res) => {
+router.patch('/messages/:id/read', authenticate, async (req: AuthRequest, res) => {
   const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
   if (!id) return res.status(400).json({ error: 'Message ID required' });
-  markMailboxMessageAsRead(id);
+  await markMailboxMessageAsRead(id);
   res.json({ ok: true });
 });
 
 /** Get mailbox messages. ?postId= &folder=inbox|archive|sent. Includes attachments. */
-router.get('/', authenticate, (req: AuthRequest, res) => {
+router.get('/', authenticate, async (req: AuthRequest, res) => {
   const postId = (req.query.postId as string) || undefined;
   const folder = ((req.query.folder as string) || 'inbox') as 'inbox' | 'archive' | 'sent';
-  const allowed = getAllowListForUser(req.user);
-  const myPostIds = req.user?.id ? getPostsForUser(req.user.id).map(p => p.id) : [];
-  const list = getMailboxMessages({
+  const allowed = await getAllowListForUser(req.user);
+  const myPostIds = req.user?.id ? (await getPostsForUser(req.user.id)).map(p => p.id) : [];
+  const list = await getMailboxMessages({
     postId,
     allowedPostIds: folder === 'sent' ? undefined : allowed,
     folder,
     senderPostIds: folder === 'sent' ? myPostIds : undefined,
   });
-  const withAttachments = list.map((m) => ({
-    ...m,
-    attachments: getAttachmentsByMessageId(m.id),
-  }));
+  const withAttachments = await Promise.all(
+    list.map(async (m) => ({
+      ...m,
+      attachments: await getAttachmentsByMessageId(m.id),
+    })),
+  );
   res.json(withAttachments);
 });
 
 /** Send message to a position (recipient post). Supports file attachments via multipart/form-data. */
-router.post('/send', authenticate, upload.array('files', 10), (req: AuthRequest, res) => {
+router.post('/send', authenticate, upload.array('files', 10), async (req: AuthRequest, res) => {
   const { recipientPostId, senderPostId, subject, body } = req.body;
   const files = (req as any).files as Express.Multer.File[] | undefined;
   if (!recipientPostId || typeof recipientPostId !== 'string' || !recipientPostId.trim()) {
@@ -99,13 +101,13 @@ router.post('/send', authenticate, upload.array('files', 10), (req: AuthRequest,
   if (!subject || typeof subject !== 'string' || !subject.trim()) {
     return res.status(400).json({ error: 'subject required' });
   }
-  const post = getPostById(recipientPostId.trim());
+  const post = await getPostById(recipientPostId.trim());
   if (!post) return res.status(404).json({ error: 'Должность получателя не найдена' });
-  const senderPost = senderPostId ? getPostById(String(senderPostId).trim()) : null;
-  const myPostIds = req.user?.id ? getPostsForUser(req.user.id).map(p => p.id) : [];
+  const senderPost = senderPostId ? await getPostById(String(senderPostId).trim()) : null;
+  const myPostIds = req.user?.id ? (await getPostsForUser(req.user.id)).map(p => p.id) : [];
   const validSender = !senderPostId || (senderPost && myPostIds.includes(senderPost.id));
   const senderEmail = req.user?.email || 'unknown@local';
-  const created = createMailboxMessage({
+  const created = await createMailboxMessage({
     recipientPostId: recipientPostId.trim(),
     senderPostId: validSender && senderPost ? senderPost.id : null,
     senderEmail,
@@ -116,7 +118,7 @@ router.post('/send', authenticate, upload.array('files', 10), (req: AuthRequest,
   if (files && files.length > 0) {
     for (const f of files) {
       const storedName = path.basename(f.path);
-      const att = createMessageAttachment({
+      const att = await createMessageAttachment({
         messageId: created.id,
         filename: f.originalname,
         mimeType: f.mimetype,
@@ -130,14 +132,14 @@ router.post('/send', authenticate, upload.array('files', 10), (req: AuthRequest,
 });
 
 /** Download attachment. User must have access to the message (recipient post in allowed list). */
-router.get('/attachments/:id', authenticate, (req: AuthRequest, res) => {
+router.get('/attachments/:id', authenticate, async (req: AuthRequest, res) => {
   const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
   if (!id) return res.status(400).json({ error: 'Attachment ID required' });
-  const att = getAttachmentById(id);
+  const att = await getAttachmentById(id);
   if (!att) return res.status(404).json({ error: 'Вложение не найдено' });
-  const recipientPostId = getMessageRecipientPostId(att.messageId);
+  const recipientPostId = await getMessageRecipientPostId(att.messageId);
   if (!recipientPostId) return res.status(404).json({ error: 'Сообщение не найдено' });
-  const allowed = getAllowListForUser(req.user);
+  const allowed = await getAllowListForUser(req.user);
   const hasAccess = allowed === null || allowed.includes(recipientPostId);
   if (!hasAccess) return res.status(403).json({ error: 'Нет доступа' });
   const absPath = path.join(uploadsDir, att.filePath);
@@ -153,34 +155,34 @@ router.get('/attachments/:id', authenticate, (req: AuthRequest, res) => {
 });
 
 /** Archive selected messages. */
-router.post('/messages/archive', authenticate, (req: AuthRequest, res) => {
+router.post('/messages/archive', authenticate, async (req: AuthRequest, res) => {
   const { ids } = req.body;
   const idList = Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [];
   if (idList.length === 0) return res.status(400).json({ error: 'ids required' });
-  archiveMailboxMessagesBulk(idList);
-  appendAuditLog({ entityType: 'mailbox_message', entityId: 'bulk', action: 'archive', userId: (req as any).user?.id ?? 'unknown', changes: null });
+  await archiveMailboxMessagesBulk(idList);
+  await appendAuditLog({ entityType: 'mailbox_message', entityId: 'bulk', action: 'archive', userId: (req as any).user?.id ?? 'unknown', changes: null });
   res.json({ ok: true });
 });
 
 /** Delete selected messages. */
-router.post('/messages/delete', authenticate, (req: AuthRequest, res) => {
+router.post('/messages/delete', authenticate, async (req: AuthRequest, res) => {
   const { ids } = req.body;
   const idList = Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [];
   if (idList.length === 0) return res.status(400).json({ error: 'ids required' });
-  deleteMailboxMessages(idList);
-  appendAuditLog({ entityType: 'mailbox_message', entityId: 'bulk', action: 'delete', userId: (req as any).user?.id ?? 'unknown', changes: null });
+  await deleteMailboxMessages(idList);
+  await appendAuditLog({ entityType: 'mailbox_message', entityId: 'bulk', action: 'delete', userId: (req as any).user?.id ?? 'unknown', changes: null });
   res.json({ ok: true });
 });
 
 /** Clear folder for post (delete all messages in folder). */
-router.post('/clear', authenticate, (req: AuthRequest, res) => {
+router.post('/clear', authenticate, async (req: AuthRequest, res) => {
   const { postId, folder } = req.body;
   if (!postId || typeof postId !== 'string') return res.status(400).json({ error: 'postId required' });
   const f = (folder === 'sent' || folder === 'archive') ? folder : 'inbox';
-  const myPostIds = req.user?.id ? getPostsForUser(req.user.id).map(p => p.id) : [];
+  const myPostIds = req.user?.id ? (await getPostsForUser(req.user.id)).map(p => p.id) : [];
   if (!myPostIds.includes(postId)) return res.status(403).json({ error: 'Нет доступа' });
-  const deleted = clearMailboxFolder(postId, f);
-  appendAuditLog({ entityType: 'mailbox_message', entityId: 'bulk', action: 'delete', userId: (req as any).user?.id ?? 'unknown', changes: null });
+  const deleted = await clearMailboxFolder(postId, f);
+  await appendAuditLog({ entityType: 'mailbox_message', entityId: 'bulk', action: 'delete', userId: (req as any).user?.id ?? 'unknown', changes: null });
   res.json({ deleted });
 });
 

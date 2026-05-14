@@ -1,7 +1,9 @@
+COMPOSE := docker compose
 COMPOSE_LOCAL := docker compose -f docker-compose.local.yml
 COMPOSE_LOCAL_DEV := docker compose -f docker-compose.local.yml -f docker-compose.local.dev.yml
 
 .PHONY: help \
+	build up down logs ps \
 	up-local build-local down-local restart-local logs-local ps-local \
 	up-local-dev down-local-dev logs-local-dev ps-local-dev \
 	shell-backend-local shell-frontend-local \
@@ -9,6 +11,21 @@ COMPOSE_LOCAL_DEV := docker compose -f docker-compose.local.yml -f docker-compos
 
 help: ## Show all available commands
 	@awk 'BEGIN {FS = ":.*## "}; /^[a-zA-Z0-9_.-]+:.*## / {printf "  %-22s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+build: ## Build production images (VPS: git pull && make build && make up)
+	$(COMPOSE) build
+
+up: ## Start production stack (db + backend + frontend) in the background
+	$(COMPOSE) up -d
+
+down: ## Stop production stack
+	$(COMPOSE) down
+
+logs: ## Follow production stack logs
+	$(COMPOSE) logs -f
+
+ps: ## Show production stack containers
+	$(COMPOSE) ps
 
 up-local: ## Build (if needed) and start local Docker stack (backend + frontend)
 	$(COMPOSE_LOCAL) up -d --build

@@ -22,7 +22,7 @@ router.post('/signup', async (req, res) => {
   }
   try {
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = createUser({ email: sanitizeString(email.trim()), name: sanitizeString(name.trim()), passwordHash, organizationId: process.env.DEFAULT_ORGANIZATION_ID ?? '1' });
+    const user = await createUser({ email: sanitizeString(email.trim()), name: sanitizeString(name.trim()), passwordHash, organizationId: process.env.DEFAULT_ORGANIZATION_ID ?? '1' });
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, organizationId: user.organizationId, postId: user.postId },
       getJwtSecret(),
@@ -47,14 +47,14 @@ router.post('/signup', async (req, res) => {
 });
 
 /** Login: verify password, issue JWT. User role from Post.role (postId). */
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  const user = getUserByEmailForLogin(email.trim());
+  const user = await getUserByEmailForLogin(email.trim());
   if (!user) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
@@ -64,7 +64,7 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  const adminAssignedAt = user.role === 'Admin' ? getAdminAssignedAt(user.id) : null;
+  const adminAssignedAt = user.role === 'Admin' ? await getAdminAssignedAt(user.id) : null;
 
   const token = jwt.sign(
     { id: user.id, email: user.email, role: user.role, organizationId: user.organizationId, postId: user.postId },
@@ -87,12 +87,12 @@ router.post('/login', (req, res) => {
   });
 });
 
-router.get('/me', authenticate, (req: any, res) => {
-  const dbUser = getUserById(req.user.id);
+router.get('/me', authenticate, async (req: any, res) => {
+  const dbUser = await getUserById(req.user.id);
   if (!dbUser) {
     return res.status(404).json({ error: 'User not found' });
   }
-  const adminAssignedAt = dbUser.role === 'Admin' ? getAdminAssignedAt(dbUser.id) : null;
+  const adminAssignedAt = dbUser.role === 'Admin' ? await getAdminAssignedAt(dbUser.id) : null;
   res.json({
     user: {
       id: dbUser.id,
