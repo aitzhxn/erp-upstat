@@ -281,8 +281,10 @@ router.post('/posts/:id/assign', authenticate, requireRole('Admin', 'Department 
     });
   }
   const updated = await getPostById(id);
-  // Role may have changed — instruct the client to re-fetch a fresh token
-  res.setHeader('X-Token-Refresh-Required', 'true');
+  // Role may have changed — instruct the client to re-fetch a fresh token only if the current user was affected
+  if (userId === req.user?.id) {
+    res.setHeader('X-Token-Refresh-Required', 'true');
+  }
   res.json(updated);
 });
 
@@ -311,8 +313,10 @@ router.post('/posts/:id/assign-user', authenticate, requireRole('Admin', 'Depart
     });
   }
   const updated = await getPostById(id);
-  // Role may have changed — instruct the client to re-fetch a fresh token
-  res.setHeader('X-Token-Refresh-Required', 'true');
+  // Role may have changed — instruct the client to re-fetch a fresh token only if the current user was affected
+  if (userId === req.user?.id) {
+    res.setHeader('X-Token-Refresh-Required', 'true');
+  }
   res.json(updated);
 });
 
