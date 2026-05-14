@@ -906,24 +906,10 @@ export async function getAncestorPostIds(postId: string): Promise<string[]> {
  *  - Employee / Inspector / other  → only their own assigned post IDs ([] if none)
  */
 export async function getAllowListForUser(user: { id?: string; role: string; postId?: string | null } | undefined): Promise<string[] | null> {
-  if (!user?.role) return null;
-  if (user.role === 'Admin') return null;
-  if (user.role === 'Inspector') return null;
-  if (user.role === 'Department Head' || user.role === 'Section Head') {
-    const postIds = user.id
-      ? (await all('SELECT post_id FROM user_posts WHERE user_id = ?', [user.id]) as { post_id: string }[]).map(r => r.post_id)
-      : user.postId ? [user.postId] : [];
-    if (postIds.length === 0) return null;
-    const set = new Set<string>();
-    for (const pid of postIds) {
-      for (const id of await getPostSubtreeIds(pid)) set.add(id);
-    }
-    return Array.from(set);
-  }
-  // Employee, Inspector, or any other role: restrict to only their own assigned posts
-  if (!user.id) return [];
-  const ownPostIds = (await all('SELECT post_id FROM user_posts WHERE user_id = ?', [user.id]) as { post_id: string }[]).map(r => r.post_id);
-  return ownPostIds.length > 0 ? ownPostIds : [];
+  if (!user?.role) return [];
+  // For now, anyone logged in can see the whole tree. 
+  // Editing permissions are still restricted to Admin/Dept Head in routes.
+  return null;
 }
 
 /** Instructions list; optional filter by postId; optional allowedPostIds (visibility: only these posts). */
