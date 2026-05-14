@@ -1770,11 +1770,11 @@ export async function createWorkPlan(data: {
 /** Get single work plan by id. */
 export async function getWorkPlanById(id: string): Promise<{ id: string; title: string; postId: string; department: string | null; status: string; dueDate: string | null; workflowStatus: string; authorUserId: string | null; approverPostId: string | null; submittedAt: string | null; approvedAt: string | null; rejectedAt: string | null; rejectionComment: string | null; approvalComment: string | null; period: string | null; messageText: string | null; createdAt: string; updatedAt: string } | null> {
   const row = await get(`
-    SELECT id, title, post_id AS postId, department, status, due_date AS dueDate,
-           COALESCE(workflow_status, 'draft') AS workflowStatus, author_user_id AS authorUserId,
-           approver_post_id AS approverPostId, submitted_at AS submittedAt, approved_at AS approvedAt,
-           rejected_at AS rejectedAt, rejection_comment AS rejectionComment, approval_comment AS approvalComment, period, message_text AS messageText,
-           created_at AS createdAt, updated_at AS updatedAt
+    SELECT id, title, post_id AS "postId", department, status, due_date AS "dueDate",
+           COALESCE(workflow_status, 'draft') AS "workflowStatus", author_user_id AS "authorUserId",
+           approver_post_id AS "approverPostId", submitted_at AS "submittedAt", approved_at AS "approvedAt",
+           rejected_at AS "rejectedAt", rejection_comment AS "rejectionComment", approval_comment AS "approvalComment", period, message_text AS "messageText",
+           created_at AS "createdAt", updated_at AS "updatedAt"
     FROM work_plans WHERE id = ?
   `, [id]) as any;
   if (!row) return null;
@@ -1867,10 +1867,10 @@ export async function getWorkPlans(opts: { postId?: string; allowedPostIds?: str
   if (opts.approverPostIds && opts.approverPostIds.length > 500) {
     throw new Error('Too many approver IDs requested');
   }
-  let sql = `SELECT id, title, post_id AS postId, department, status, due_date AS dueDate,
-    COALESCE(workflow_status, 'draft') AS workflowStatus, author_user_id AS authorUserId, approver_post_id AS approverPostId,
-    submitted_at AS submittedAt, approved_at AS approvedAt, rejected_at AS rejectedAt, rejection_comment AS rejectionComment, approval_comment AS approvalComment, period, message_text AS messageText,
-    created_at AS createdAt, updated_at AS updatedAt FROM work_plans`;
+  let sql = `SELECT id, title, post_id AS "postId", department, status, due_date AS "dueDate",
+    COALESCE(workflow_status, 'draft') AS "workflowStatus", author_user_id AS "authorUserId", approver_post_id AS "approverPostId",
+    submitted_at AS "submittedAt", approved_at AS "approvedAt", rejected_at AS "rejectedAt", rejection_comment AS "rejectionComment", approval_comment AS "approvalComment", period, message_text AS "messageText",
+    created_at AS "createdAt", updated_at AS "updatedAt" FROM work_plans`;
   const params: (string | number)[] = [];
   const conditions: string[] = [];
   if (opts.postId) { conditions.push('post_id = ?'); params.push(opts.postId); }
@@ -1892,7 +1892,7 @@ export async function getWorkPlans(opts: { postId?: string; allowedPostIds?: str
 /** Work plan tasks. */
 export async function getWorkPlanTasks(workPlanId: string): Promise<Array<{ id: string; workPlanId: string; title: string; dueDate: string | null; orderIndex: number }>> {
   const rows = await all(`
-    SELECT id, work_plan_id AS workPlanId, title, due_date AS dueDate, order_index AS orderIndex
+    SELECT id, work_plan_id AS "workPlanId", title, due_date AS "dueDate", order_index AS "orderIndex"
     FROM work_plan_tasks WHERE work_plan_id = ? ORDER BY order_index, id
   `, [workPlanId]) as any[];
   return rows.map(r => ({ ...r, dueDate: r.dueDate ?? null }));
