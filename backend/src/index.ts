@@ -25,9 +25,13 @@ const PORT = Number(process.env.PORT) || 3001;
 app.use(helmet());
 
 // Note: JWT stored in localStorage (not cookies) - CSRF risk is minimal. Origin validation handled by CORS.
-// CORS: разрешаем фронт с Vite (5173) и других портов
+// CORS: читаем список origins из CORS_ORIGINS (через запятую) или используем дефолты для dev
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'],
+  origin: allowedOrigins,
   credentials: true,
 }));
 
