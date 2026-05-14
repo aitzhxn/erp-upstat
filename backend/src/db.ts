@@ -2130,7 +2130,7 @@ export async function getMailboxMessages(opts: {
     conditions.push("(folder = ? OR (folder IS NULL AND ? = 'inbox'))");
     params.push(folder, folder);
   }
-  const sql = `SELECT id, recipient_post_id AS recipientPostId, sender_post_id AS senderPostId, sender_email AS senderEmail, subject, body_snippet AS bodySnippet, message_date AS messageDate, unread, COALESCE(folder, 'inbox') AS folder FROM mailbox_messages WHERE ${conditions.join(' AND ')} ORDER BY message_date DESC`;
+  const sql = `SELECT id, recipient_post_id AS "recipientPostId", sender_post_id AS "senderPostId", sender_email AS "senderEmail", subject, body_snippet AS "bodySnippet", message_date AS "messageDate", unread, COALESCE(folder, 'inbox') AS folder FROM mailbox_messages WHERE ${conditions.join(' AND ')} ORDER BY message_date DESC`;
   const rows = await all(sql, [...params]) as any[];
   return rows.map(r => ({ ...r, unread: Number(r.unread), bodySnippet: r.bodySnippet ?? null, senderPostId: r.senderPostId ?? null, folder: r.folder ?? 'inbox' }));
 }
@@ -2138,7 +2138,7 @@ export async function getMailboxMessages(opts: {
 /** Get one mailbox message by id with full body (for view modal). Returns null if not found. */
 export async function getMailboxMessageById(id: string): Promise<{ id: string; recipientPostId: string; senderPostId: string | null; senderEmail: string; subject: string; bodySnippet: string | null; body: string | null; messageDate: string; unread: number; folder: string } | null> {
   const row = await get(`
-    SELECT id, recipient_post_id AS recipientPostId, sender_post_id AS senderPostId, sender_email AS senderEmail, subject, body_snippet AS bodySnippet, body, message_date AS messageDate, unread, COALESCE(folder, 'inbox') AS folder
+    SELECT id, recipient_post_id AS "recipientPostId", sender_post_id AS "senderPostId", sender_email AS "senderEmail", subject, body_snippet AS "bodySnippet", body, message_date AS "messageDate", unread, COALESCE(folder, 'inbox') AS folder
     FROM mailbox_messages WHERE id = ?
   `, [id]) as any;
   if (!row) return null;
@@ -2148,9 +2148,9 @@ export async function getMailboxMessageById(id: string): Promise<{ id: string; r
 /** Recent audit log entries (for Dashboard). Optional allowedPostIds: when set, only include post entities in that list. */
 export async function getRecentAuditLog(limit: number, allowedPostIds?: string[] | null): Promise<Array<{ id: string; entityType: string; entityId: string; action: string; userId: string; userName: string | null; changes: string | null; createdAt: string }>> {
   let sql = `
-    SELECT al.id, al.entity_type AS entityType, al.entity_id AS entityId,
-           al.action, al.user_id AS userId, u.name AS userName,
-           al.changes, al.created_at AS createdAt
+    SELECT al.id, al.entity_type AS "entityType", al.entity_id AS "entityId",
+           al.action, al.user_id AS "userId", u.name AS "userName",
+           al.changes, al.created_at AS "createdAt"
     FROM audit_log al
     LEFT JOIN users u ON u.id = al.user_id
   `;

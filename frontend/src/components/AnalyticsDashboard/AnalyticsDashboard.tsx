@@ -320,13 +320,16 @@ export function AnalyticsDashboard() {
   })();
 
   // Данные для бар-чарта (план vs факт по метрикам)
-  const barData = filteredRows.map((row: any) => ({
-    name: row.metricName.length > 18 ? row.metricName.slice(0, 16) + '…' : row.metricName,
-    fullName: `${row.metricName} (${row.postTitle})`,
-    unit: row.unit,
-    fact: row.weekTotal,
-    plan: row.plan > 0 ? row.plan : null,
-  }));
+  const barData = filteredRows.map((row: any) => {
+    const mName = row.metricName || 'Неизвестная метрика';
+    return {
+      name: mName.length > 18 ? mName.slice(0, 16) + '…' : mName,
+      fullName: `${mName} (${row.postTitle || 'Нет должности'})`,
+      unit: row.unit,
+      fact: row.weekTotal,
+      plan: row.plan > 0 ? row.plan : null,
+    };
+  });
 
   const hasData = filteredRows.length > 0;
 
