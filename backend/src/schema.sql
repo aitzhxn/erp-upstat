@@ -149,13 +149,17 @@ CREATE TABLE IF NOT EXISTS work_plans (
 CREATE TABLE IF NOT EXISTS mailbox_messages (
   id                TEXT PRIMARY KEY,
   recipient_post_id TEXT NOT NULL REFERENCES posts(id),
+  sender_post_id    TEXT REFERENCES posts(id),
   sender_email      TEXT NOT NULL,
   subject           TEXT NOT NULL,
   body_snippet      TEXT,
+  body              TEXT,
   message_date      TEXT NOT NULL,
   unread            INTEGER NOT NULL DEFAULT 1,
+  folder            TEXT DEFAULT 'inbox',
   created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  work_plan_id      TEXT REFERENCES work_plans(id)
+  work_plan_id      TEXT REFERENCES work_plans(id),
+  parent_message_id TEXT REFERENCES mailbox_messages(id)
 );
 
 -- Work plan notifications: for approvers and employees

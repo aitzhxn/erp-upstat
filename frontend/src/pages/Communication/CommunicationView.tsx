@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
-import { Send, Inbox, Archive, Mail, Paperclip, X, Download, Trash2 } from 'lucide-react';
+import { Send, Inbox, Archive, Mail, Paperclip, X, Download, Trash2, Reply } from 'lucide-react';
 import { communicationService, type MailboxMessage, type MailboxFolder } from '@/services/communicationService';
 import { orgService } from '@/services/orgService';
 import type { PostWithHolder } from '@/types';
@@ -21,6 +21,7 @@ export default function CommunicationView() {
   const [composeRecipient, setComposeRecipient] = useState('');
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
+  const [composeParentMessageId, setComposeParentMessageId] = useState<string | null>(null);
   const [composeSending, setComposeSending] = useState(false);
   const [composeError, setComposeError] = useState<string | null>(null);
   const [composeFiles, setComposeFiles] = useState<File[]>([]);
@@ -75,6 +76,7 @@ export default function CommunicationView() {
     setComposeRecipient('');
     setComposeSubject('');
     setComposeBody('');
+    setComposeParentMessageId(null);
     setComposeFiles([]);
     setComposeError(null);
     setShowComposeModal(true);
@@ -82,6 +84,7 @@ export default function CommunicationView() {
 
   const closeCompose = () => {
     setShowComposeModal(false);
+    setComposeParentMessageId(null);
     setComposeError(null);
   };
 
@@ -102,6 +105,7 @@ export default function CommunicationView() {
         senderPostId: selectedPostId ?? undefined,
         subject: composeSubject.trim(),
         body: composeBody.trim(),
+        parentMessageId: composeParentMessageId,
         files: composeFiles.length > 0 ? composeFiles : undefined,
       });
       closeCompose();
@@ -151,6 +155,23 @@ export default function CommunicationView() {
   const closeViewModal = () => {
     setViewMessageId(null);
     setViewMessageFull(null);
+  };
+
+  const handleReply = (msg: MailboxMessage) => {
+    if (!msg.senderPostId) return;
+    setComposeRecipient(msg.senderPostId);
+    setComposeSubject(msg.subject.startsWith('Re: ') ? msg.subject : `Re: ${msg.subject}`);
+    setComposeBody(
+      `\n\n--- Исходное сообщение ---\nОт: ${msg.senderEmail}\nДата: ${msg.messageDate}\nТема: ${msg.subject}\n\n${
+        msg.body ?? msg.bodySnippet ?? ''
+      }`
+    );
+    setComposeParentMessageId(msg.id);
+    setComposeFiles([]);
+    setComposeError(null);
+    setViewMessageId(null);
+    setViewMessageFull(null);
+    setShowComposeModal(true);
   };
 
   const toggleSelect = (id: string) => {
@@ -437,6 +458,13 @@ export default function CommunicationView() {
               )}
               <div><span className="text-textSecondary">Дата: </span><span className="text-textPrimary">{viewMessageFull.messageDate}</span></div>
             </div>
+            {viewMessageFull.parentMessageId && (
+              <div className="text-sm">
+                <Button variant="link" className="p-0 h-auto text-primary" onClick={() => setViewMessageId(viewMessageFull.parentMessageId!)}>
+                  Показать исходное письмо
+                </Button>
+              </div>
+            )}
             {viewMessageFull.workPlanId && (
               <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg">
                 <p className="text-sm text-textPrimary mb-2">Это уведомление о плане работ</p>
@@ -466,6 +494,15 @@ export default function CommunicationView() {
                 </div>
               </div>
             )}
+            <div className="flex justify-end gap-2 border-t border-border pt-4">
+              <Button variant="outline" onClick={closeViewModal}>Закрыть</Button>
+              {folder !== 'sent' && viewMessageFull.senderPostId && (
+                <Button onClick={() => handleReply(viewMessageFull)}>
+                  <Reply className="w-4 h-4 mr-2" />
+                  Ответить
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </Modal>

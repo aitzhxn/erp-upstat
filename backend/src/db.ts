@@ -1981,17 +1981,18 @@ export async function createMailboxMessage(data: {
   subject: string;
   body: string;
   workPlanId?: string | null;
-}): Promise<{ id: string; recipientPostId: string; senderPostId: string | null; senderEmail: string; subject: string; bodySnippet: string | null; messageDate: string; unread: number; folder: string; workPlanId: string | null }> {
+  parentMessageId?: string | null;
+}): Promise<{ id: string; recipientPostId: string; senderPostId: string | null; senderEmail: string; subject: string; bodySnippet: string | null; messageDate: string; unread: number; folder: string; workPlanId: string | null; parentMessageId: string | null }> {
   const id = `msg${Date.now()}`;
   const bodyTrim = data.body.trim();
   const bodySnippet = bodyTrim.slice(0, 200) || null;
   const messageDate = new Date().toISOString().slice(0, 10);
   const body = bodyTrim || null;
   await run(`
-    INSERT INTO mailbox_messages (id, recipient_post_id, sender_post_id, sender_email, subject, body_snippet, body, message_date, unread, folder, work_plan_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'inbox', ?)
-  `, [id, data.recipientPostId, data.senderPostId ?? null, data.senderEmail, data.subject.trim(), bodySnippet, body, messageDate, data.workPlanId ?? null]);
-  return { id, recipientPostId: data.recipientPostId, senderPostId: data.senderPostId ?? null, senderEmail: data.senderEmail, subject: data.subject.trim(), bodySnippet, messageDate, unread: 1, folder: 'inbox', workPlanId: data.workPlanId ?? null };
+    INSERT INTO mailbox_messages (id, recipient_post_id, sender_post_id, sender_email, subject, body_snippet, body, message_date, unread, folder, work_plan_id, parent_message_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'inbox', ?, ?)
+  `, [id, data.recipientPostId, data.senderPostId ?? null, data.senderEmail, data.subject.trim(), bodySnippet, body, messageDate, data.workPlanId ?? null, data.parentMessageId ?? null]);
+  return { id, recipientPostId: data.recipientPostId, senderPostId: data.senderPostId ?? null, senderEmail: data.senderEmail, subject: data.subject.trim(), bodySnippet, messageDate, unread: 1, folder: 'inbox', workPlanId: data.workPlanId ?? null, parentMessageId: data.parentMessageId ?? null };
 }
 
 /** Create attachment record for a message. */
@@ -2094,7 +2095,7 @@ export async function getMailboxMessages(opts: {
   allowedPostIds?: string[] | null;
   folder?: MailboxFolder;
   senderPostIds?: string[];
-}): Promise<Array<{ id: string; recipientPostId: string; senderPostId: string | null; senderEmail: string; subject: string; bodySnippet: string | null; messageDate: string; unread: number; folder: string }>> {
+}): Promise<Array<{ id: string; recipientPostId: string; senderPostId: string | null; senderEmail: string; subject: string; bodySnippet: string | null; messageDate: string; unread: number; folder: string; parentMessageId: string | null }>> {
   const { postId, allowedPostIds, folder = 'inbox', senderPostIds } = opts;
   const conditions: string[] = [];
   const params: (string | number)[] = [];
@@ -2116,19 +2117,19 @@ export async function getMailboxMessages(opts: {
     conditions.push("(folder = ? OR (folder IS NULL AND ? = 'inbox'))");
     params.push(folder, folder);
   }
-  const sql = `SELECT id, recipient_post_id AS "recipientPostId", sender_post_id AS "senderPostId", sender_email AS "senderEmail", subject, body_snippet AS "bodySnippet", message_date AS "messageDate", unread, COALESCE(folder, 'inbox') AS folder FROM mailbox_messages WHERE ${conditions.join(' AND ')} ORDER BY message_date DESC`;
+  const sql = `SELECT id, recipient_post_id AS "recipientPostId", sender_post_id AS "senderPostId", sender_email AS "senderEmail", subject, body_snippet AS "bodySnippet", message_date AS "messageDate", unread, COALESCE(folder, 'inbox') AS folder, parent_message_id AS "parentMessageId" FROM mailbox_messages WHERE ${conditions.join(' AND ')} ORDER BY message_date DESC`;
   const rows = await all(sql, [...params]) as any[];
-  return rows.map(r => ({ ...r, unread: Number(r.unread), bodySnippet: r.bodySnippet ?? null, senderPostId: r.senderPostId ?? null, folder: r.folder ?? 'inbox' }));
+  return rows.map(r => ({ ...r, unread: Number(r.unread), bodySnippet: r.bodySnippet ?? null, senderPostId: r.senderPostId ?? null, folder: r.folder ?? 'inbox', parentMessageId: r.parentMessageId ?? null }));
 }
 
 /** Get one mailbox message by id with full body (for view modal). Returns null if not found. */
-export async function getMailboxMessageById(id: string): Promise<{ id: string; recipientPostId: string; senderPostId: string | null; senderEmail: string; subject: string; bodySnippet: string | null; body: string | null; messageDate: string; unread: number; folder: string } | null> {
+export async function getMailboxMessageById(id: string): Promise<{ id: string; recipientPostId: string; senderPostId: string | null; senderEmail: string; subject: string; bodySnippet: string | null; body: string | null; messageDate: string; unread: number; folder: string; parentMessageId: string | null } | null> {
   const row = await get(`
-    SELECT id, recipient_post_id AS "recipientPostId", sender_post_id AS "senderPostId", sender_email AS "senderEmail", subject, body_snippet AS "bodySnippet", body, message_date AS "messageDate", unread, COALESCE(folder, 'inbox') AS folder
+    SELECT id, recipient_post_id AS "recipientPostId", sender_post_id AS "senderPostId", sender_email AS "senderEmail", subject, body_snippet AS "bodySnippet", body, message_date AS "messageDate", unread, COALESCE(folder, 'inbox') AS folder, parent_message_id AS "parentMessageId"
     FROM mailbox_messages WHERE id = ?
   `, [id]) as any;
   if (!row) return null;
-  return { ...row, unread: Number(row.unread), bodySnippet: row.bodySnippet ?? null, body: row.body ?? null, senderPostId: row.senderPostId ?? null, folder: row.folder ?? 'inbox' };
+  return { ...row, unread: Number(row.unread), bodySnippet: row.bodySnippet ?? null, body: row.body ?? null, senderPostId: row.senderPostId ?? null, folder: row.folder ?? 'inbox', parentMessageId: row.parentMessageId ?? null };
 }
 
 /** Recent audit log entries (for Dashboard). Optional allowedPostIds: when set, only include post entities in that list. */

@@ -23,6 +23,7 @@ export interface MailboxMessage {
   folder?: string;
   attachments?: MailboxAttachment[];
   workPlanId?: string | null;
+  parentMessageId?: string | null;
 }
 
 export const communicationService = {
@@ -59,6 +60,7 @@ export const communicationService = {
     senderPostId?: string;
     subject: string;
     body: string;
+    parentMessageId?: string | null;
     files?: File[];
   }): Promise<MailboxMessage> => {
     const form = new FormData();
@@ -66,6 +68,7 @@ export const communicationService = {
     if (data.senderPostId) form.append('senderPostId', data.senderPostId);
     form.append('subject', data.subject);
     form.append('body', data.body);
+    if (data.parentMessageId) form.append('parentMessageId', data.parentMessageId);
     if (data.files?.length) {
       data.files.forEach((f) => form.append('files', f));
     }

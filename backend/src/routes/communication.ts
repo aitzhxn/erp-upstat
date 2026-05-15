@@ -93,7 +93,7 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 
 /** Send message to a position (recipient post). Supports file attachments via multipart/form-data. */
 router.post('/send', authenticate, upload.array('files', 10), async (req: AuthRequest, res) => {
-  const { recipientPostId, senderPostId, subject, body } = req.body;
+  const { recipientPostId, senderPostId, subject, body, parentMessageId } = req.body;
   const files = (req as any).files as Express.Multer.File[] | undefined;
   if (!recipientPostId || typeof recipientPostId !== 'string' || !recipientPostId.trim()) {
     return res.status(400).json({ error: 'recipientPostId required' });
@@ -113,6 +113,7 @@ router.post('/send', authenticate, upload.array('files', 10), async (req: AuthRe
     senderEmail,
     subject: sanitizeString((subject || '').trim()),
     body: sanitizeString(typeof body === 'string' ? body : ''),
+    parentMessageId: parentMessageId ? String(parentMessageId).trim() : null,
   });
   const attachments: Array<{ id: string; filename: string; mimeType: string | null; fileSize: number | null }> = [];
   if (files && files.length > 0) {
