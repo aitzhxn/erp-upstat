@@ -460,7 +460,7 @@ export default function CommunicationView() {
             </div>
             {viewMessageFull.parentMessageId && (
               <div className="text-sm">
-                <Button variant="link" className="p-0 h-auto text-primary" onClick={() => setViewMessageId(viewMessageFull.parentMessageId!)}>
+                <Button variant="ghost" className="p-0 h-auto text-primary hover:underline bg-transparent hover:bg-transparent" onClick={() => setViewMessageId(viewMessageFull.parentMessageId!)}>
                   Показать исходное письмо
                 </Button>
               </div>
