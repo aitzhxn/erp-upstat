@@ -48,9 +48,25 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later' },
 });
+const verifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5, // Only 5 OTP attempts per 15 minutes — prevents brute-force on 6-digit codes
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Слишком много попыток верификации. Попробуйте через 15 минут.' },
+});
+const resendLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 2, // Max 2 resend requests per minute — prevents email spam abuse
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Подождите минуту перед повторной отправкой кода.' },
+});
 app.use('/api', generalLimiter);
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/signup', authLimiter);
+app.use('/api/auth/verify-email', verifyLimiter);
+app.use('/api/auth/resend-verification', resendLimiter);
 app.use(express.json());
 
 // Routes

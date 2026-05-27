@@ -62,10 +62,16 @@ router.get('/messages/:id', authenticate, async (req: AuthRequest, res) => {
   res.json({ ...msg, attachments });
 });
 
-/** Mark message as read. */
+/** Mark message as read. User must own the recipient post. */
 router.patch('/messages/:id/read', authenticate, async (req: AuthRequest, res) => {
   const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
   if (!id) return res.status(400).json({ error: 'Message ID required' });
+  const msg = await getMailboxMessageById(id);
+  if (!msg) return res.status(404).json({ error: 'Сообщение не найдено' });
+  const myPostIds = req.user?.id ? (await getPostsForUser(req.user.id)).map(p => p.id) : [];
+  if (!myPostIds.includes(msg.recipientPostId)) {
+    return res.status(403).json({ error: 'Нет доступа' });
+  }
   await markMailboxMessageAsRead(id);
   res.json({ ok: true });
 });
@@ -155,22 +161,42 @@ router.get('/attachments/:id', authenticate, async (req: AuthRequest, res) => {
   });
 });
 
-/** Archive selected messages. */
+/** Archive selected messages. Only messages the user has access to will be archived. */
 router.post('/messages/archive', authenticate, async (req: AuthRequest, res) => {
   const { ids } = req.body;
   const idList = Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [];
   if (idList.length === 0) return res.status(400).json({ error: 'ids required' });
-  await archiveMailboxMessagesBulk(idList);
+  // Filter: only messages where user holds the recipient or sender post
+  const myPostIds = req.user?.id ? (await getPostsForUser(req.user.id)).map(p => p.id) : [];
+  const ownedIds: string[] = [];
+  for (const msgId of idList) {
+    const msg = await getMailboxMessageById(msgId);
+    if (msg && (myPostIds.includes(msg.recipientPostId) || (msg.senderPostId != null && myPostIds.includes(msg.senderPostId)))) {
+      ownedIds.push(msgId);
+    }
+  }
+  if (ownedIds.length === 0) return res.status(403).json({ error: 'Нет доступа к указанным сообщениям' });
+  await archiveMailboxMessagesBulk(ownedIds);
   await appendAuditLog({ entityType: 'mailbox_message', entityId: 'bulk', action: 'archive', userId: (req as any).user?.id ?? 'unknown', changes: null });
   res.json({ ok: true });
 });
 
-/** Delete selected messages. */
+/** Delete selected messages. Only messages the user has access to will be deleted. */
 router.post('/messages/delete', authenticate, async (req: AuthRequest, res) => {
   const { ids } = req.body;
   const idList = Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [];
   if (idList.length === 0) return res.status(400).json({ error: 'ids required' });
-  await deleteMailboxMessages(idList);
+  // Filter: only messages where user holds the recipient or sender post
+  const myPostIds = req.user?.id ? (await getPostsForUser(req.user.id)).map(p => p.id) : [];
+  const ownedIds: string[] = [];
+  for (const msgId of idList) {
+    const msg = await getMailboxMessageById(msgId);
+    if (msg && (myPostIds.includes(msg.recipientPostId) || (msg.senderPostId != null && myPostIds.includes(msg.senderPostId)))) {
+      ownedIds.push(msgId);
+    }
+  }
+  if (ownedIds.length === 0) return res.status(403).json({ error: 'Нет доступа к указанным сообщениям' });
+  await deleteMailboxMessages(ownedIds);
   await appendAuditLog({ entityType: 'mailbox_message', entityId: 'bulk', action: 'delete', userId: (req as any).user?.id ?? 'unknown', changes: null });
   res.json({ ok: true });
 });

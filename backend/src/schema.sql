@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS users (
   is_verified     BOOLEAN DEFAULT FALSE,
   verification_token TEXT,
   verification_token_expires_at TIMESTAMP,
+  verification_attempts INTEGER DEFAULT 0,
   created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

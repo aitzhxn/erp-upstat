@@ -18,8 +18,14 @@ interface BrevoErrorResponse {
   code?: string;
 }
 
+/** Escape HTML special characters to prevent injection in email templates. */
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 /** Build a branded HTML email body for the 6-digit verification code. */
 function buildVerificationEmailHtml(code: string, recipientEmail: string): string {
+  const safeEmail = escapeHtml(recipientEmail);
   const digits = code.split('').map(d =>
     `<span style="
       display: inline-block;
@@ -109,7 +115,7 @@ function buildVerificationEmailHtml(code: string, recipientEmail: string): strin
               ">
                 Если вы не регистрировались в <strong style="color:#7c7c9a;">Upstat AI</strong>,
                 просто проигнорируйте это письмо — ваш аккаунт останется в безопасности.<br/>
-                Письмо отправлено для: <span style="color:#a78bfa;">${recipientEmail}</span>
+                Письмо отправлено для: <span style="color:#a78bfa;">${safeEmail}</span>
               </p>
             </td>
           </tr>
@@ -157,7 +163,7 @@ export async function sendVerificationEmail(toEmail: string, code: string): Prom
   const payload: BrevoEmailPayload = {
     sender: { name: 'Upstat AI', email: senderEmail },
     to: [{ email: toEmail }],
-    subject: `${code} — ваш код подтверждения Upstat AI`,
+    subject: 'Ваш код подтверждения — Upstat AI',
     htmlContent: buildVerificationEmailHtml(code, toEmail),
   };
 

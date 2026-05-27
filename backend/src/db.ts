@@ -305,6 +305,9 @@ async function migrateUsersVerification(): Promise<void> {
   try {
     await execRaw('ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token_expires_at TIMESTAMP');
   } catch { /* already exists */ }
+  try {
+    await execRaw('ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_attempts INTEGER DEFAULT 0');
+  } catch { /* already exists */ }
 }
 
 /** Migrate users.post_id into user_posts so one user can hold multiple posts. */
@@ -2309,7 +2312,7 @@ export async function getUserByEmailForLogin(email: string): Promise<{ id: strin
 export async function verifyUserEmail(email: string, code: string): Promise<{ id: string; email: string; name: string; organizationId: string; postId: string | null; role: string; isVerified: boolean }> {
   const emailNorm = email.trim().toLowerCase();
   const user = await get(`
-    SELECT id, is_verified, verification_token, verification_token_expires_at
+    SELECT id, is_verified, verification_token, verification_token_expires_at, verification_attempts
     FROM users WHERE LOWER(TRIM(email)) = ?
   `, [emailNorm]) as any;
   if (!user) {
@@ -2318,16 +2321,26 @@ export async function verifyUserEmail(email: string, code: string): Promise<{ id
   if (user.is_verified) {
     throw new Error('Email уже подтвержден');
   }
-  if (!user.verification_token || user.verification_token !== code.trim()) {
-    throw new Error('Неверный код подтверждения');
+  // Check if code has been burned by too many failed attempts
+  const attempts = user.verification_attempts ?? 0;
+  if (attempts >= 5) {
+    // Invalidate the code — user must request a new one
+    await run(`UPDATE users SET verification_token = NULL, verification_token_expires_at = NULL, verification_attempts = 0 WHERE id = ?`, [user.id]);
+    throw new Error('Код заблокирован после 5 неудачных попыток. Запросите новый код.');
   }
   const expiresAt = user.verification_token_expires_at ? new Date(user.verification_token_expires_at) : null;
   if (expiresAt && expiresAt.getTime() < Date.now()) {
     throw new Error('Срок действия кода подтверждения истек');
   }
+  if (!user.verification_token || user.verification_token !== code.trim()) {
+    // Increment attempt counter on wrong code
+    await run(`UPDATE users SET verification_attempts = COALESCE(verification_attempts, 0) + 1 WHERE id = ?`, [user.id]);
+    const remaining = 4 - attempts;
+    throw new Error(`Неверный код подтверждения. Осталось попыток: ${remaining > 0 ? remaining : 0}`);
+  }
   await run(`
     UPDATE users
-    SET is_verified = TRUE, verification_token = NULL, verification_token_expires_at = NULL
+    SET is_verified = TRUE, verification_token = NULL, verification_token_expires_at = NULL, verification_attempts = 0
     WHERE id = ?
   `, [user.id]);
 
