@@ -3,7 +3,14 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { authenticate } from '../middleware/auth';
 import { sanitizeString } from '../middleware/sanitize';
-import { getUserByEmailForLogin, createUser, getUserById, getAdminAssignedAt } from '../db';
+import {
+  getUserByEmailForLogin,
+  createUser,
+  getUserById,
+  getAdminAssignedAt,
+  verifyUserEmail,
+  resendUserVerificationCode,
+} from '../db';
 
 const router = Router();
 
@@ -11,7 +18,7 @@ function getJwtSecret(): string {
   return process.env.JWT_SECRET!;
 }
 
-/** Signup: create user, issue JWT. New users have postId=null, role=Employee. */
+/** Signup: create user. Does not issue JWT directly. User redirected to verify email. */
 router.post('/signup', async (req, res) => {
   const { email, name, password } = req.body;
   if (!email?.trim() || !name?.trim() || !password) {
@@ -22,23 +29,15 @@ router.post('/signup', async (req, res) => {
   }
   try {
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await createUser({ email: sanitizeString(email.trim()), name: sanitizeString(name.trim()), passwordHash, organizationId: process.env.DEFAULT_ORGANIZATION_ID ?? '1' });
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, organizationId: user.organizationId, postId: user.postId },
-      getJwtSecret(),
-      { expiresIn: '7d' }
-    );
+    const user = await createUser({
+      email: sanitizeString(email.trim()),
+      name: sanitizeString(name.trim()),
+      passwordHash,
+      organizationId: process.env.DEFAULT_ORGANIZATION_ID ?? '1',
+    });
     res.status(201).json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        organizationId: user.organizationId,
-        organizationName: 'Main Organization',
-        postId: user.postId,
-      },
+      message: 'Verification code sent to email',
+      email: user.email,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Signup failed';
@@ -46,7 +45,7 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-/** Login: verify password, issue JWT. User role from Post.role (postId). */
+/** Login: verify password, check verification, issue JWT. */
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -62,6 +61,14 @@ router.post('/login', async (req, res) => {
   const valid = bcrypt.compareSync(password, user.passwordHash);
   if (!valid) {
     return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  if (!user.isVerified) {
+    return res.status(403).json({
+      error: 'Email not verified',
+      isVerified: false,
+      email: user.email,
+    });
   }
 
   const adminAssignedAt = user.role === 'Admin' ? await getAdminAssignedAt(user.id) : null;
@@ -85,6 +92,52 @@ router.post('/login', async (req, res) => {
       ...(adminAssignedAt != null ? { adminAssignedAt } : {}),
     },
   });
+});
+
+/** Verify email endpoint: validates 6-digit OTP code and returns session token. */
+router.post('/verify-email', async (req, res) => {
+  const { email, code } = req.body;
+  if (!email?.trim() || !code?.trim()) {
+    return res.status(400).json({ error: 'Email and code are required' });
+  }
+  try {
+    const user = await verifyUserEmail(email.trim(), code.trim());
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, organizationId: user.organizationId, postId: user.postId },
+      getJwtSecret(),
+      { expiresIn: '7d' }
+    );
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        organizationId: user.organizationId,
+        organizationName: 'Main Organization',
+        postId: user.postId,
+      },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Verification failed';
+    return res.status(400).json({ error: msg });
+  }
+});
+
+/** Resend verification code endpoint. */
+router.post('/resend-verification', async (req, res) => {
+  const { email } = req.body;
+  if (!email?.trim()) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+  try {
+    await resendUserVerificationCode(email.trim());
+    res.json({ message: 'Verification code resent successfully' });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Failed to resend verification code';
+    return res.status(400).json({ error: msg });
+  }
 });
 
 router.get('/me', authenticate, async (req: any, res) => {

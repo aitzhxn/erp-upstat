@@ -1,16 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { setUser, setToken, setOrganizations } from '@/store/slices/authSlice';
-import { signup, saveAuth } from '@/services/authService';
+import { signup } from '@/services/authService';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
-const defaultOrgs = [{ id: '1', name: 'Main Organization' }];
-
 export default function Signup() {
-  const dispatch = useDispatch();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -30,12 +25,8 @@ export default function Signup() {
     setLoading(true);
     (async () => {
       try {
-        const { user, token } = await signup({ name, email, password });
-        dispatch(setUser(user));
-        dispatch(setToken(token));
-        dispatch(setOrganizations(defaultOrgs));
-        saveAuth(token, user, defaultOrgs);
-        navigate('/dashboard', { replace: true });
+        const res = await signup({ name, email, password });
+        navigate(`/verify-email?email=${encodeURIComponent(res.email)}`, { replace: true });
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Ошибка регистрации');
       } finally {

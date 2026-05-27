@@ -18,6 +18,7 @@ export interface User {
   avatarUrl?: string;
   /** When current user is Admin: date they were assigned to admin post (for seniority). */
   adminAssignedAt?: string;
+  isVerified?: boolean;
 }
 
 // Department

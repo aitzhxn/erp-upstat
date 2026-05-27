@@ -3,6 +3,7 @@ import * as path from 'path';
 import bcrypt from 'bcryptjs';
 import type { PostWithHolder, PostHolder, User } from './types';
 import { execRaw, run, get, all, transaction, clientRun, clientGet, clientAll } from './pgClient';
+import { sendVerificationEmail } from './services/mailService';
 
 function rowToPost(row: any): Omit<PostWithHolder, 'currentHolder'> {
   return {
@@ -62,6 +63,7 @@ export async function initDb(): Promise<void> {
   await migrateMailboxMessagesWorkPlan();
   await migrateWorkPlanNotifications();
   await migrateWorkPlansWorkflow();
+  await migrateUsersVerification();
   await execRaw(
     "ALTER TABLE departments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
   );
@@ -287,6 +289,22 @@ async function migrateWorkPlansWorkflow(): Promise<void> {
     await execRaw('CREATE INDEX IF NOT EXISTS idx_work_plan_tasks_plan ON work_plan_tasks(work_plan_id)');
   } catch { /* ignore */ }
   await execRaw(`UPDATE work_plans SET workflow_status = 'draft' WHERE workflow_status IS NULL`);
+}
+
+/** Migrate users to support email verification columns and verify existing users. */
+async function migrateUsersVerification(): Promise<void> {
+  try {
+    // Add is_verified column defaulting to TRUE so existing users are automatically verified
+    await execRaw('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT TRUE');
+    // Set future defaults to FALSE for new insertions
+    await execRaw('ALTER TABLE users ALTER COLUMN is_verified SET DEFAULT FALSE');
+  } catch { /* already exists */ }
+  try {
+    await execRaw('ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT');
+  } catch { /* already exists */ }
+  try {
+    await execRaw('ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token_expires_at TIMESTAMP');
+  } catch { /* already exists */ }
 }
 
 /** Migrate users.post_id into user_posts so one user can hold multiple posts. */
@@ -2173,7 +2191,7 @@ export async function appendAuditLog(data: { entityType: string; entityId: strin
 }
 
 /** Create user (for signup). Returns user without password. Throws if email exists. Email stored lowercase. */
-export async function createUser(data: { email: string; name: string; passwordHash: string; organizationId?: string }): Promise<{ id: string; email: string; name: string; organizationId: string; postId: null; role: string }> {
+export async function createUser(data: { email: string; name: string; passwordHash: string; organizationId?: string }): Promise<{ id: string; email: string; name: string; organizationId: string; postId: null; role: string; isVerified: boolean }> {
   const emailNorm = data.email.trim().toLowerCase();
   const existing = await get('SELECT id FROM users WHERE LOWER(TRIM(email)) = ?', [emailNorm]);
   if (existing) {
@@ -2181,10 +2199,23 @@ export async function createUser(data: { email: string; name: string; passwordHa
   }
   const id = `u${Date.now()}`;
   const orgId = data.organizationId ?? '1';
+  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+  // Code expires in 10 minutes
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
   await run(`
-    INSERT INTO users (id, email, name, organization_id, password_hash, post_id)
-    VALUES (?, ?, ?, ?, ?, NULL)
-  `, [id, emailNorm, data.name.trim(), orgId, data.passwordHash]);
+    INSERT INTO users (id, email, name, organization_id, password_hash, post_id, is_verified, verification_token, verification_token_expires_at)
+    VALUES (?, ?, ?, ?, ?, NULL, FALSE, ?, ?)
+  `, [id, emailNorm, data.name.trim(), orgId, data.passwordHash, verificationCode, expiresAt.toISOString()]);
+
+  // Send real email via Brevo (falls back to console.log if BREVO_API_KEY is unset)
+  try {
+    await sendVerificationEmail(emailNorm, verificationCode);
+  } catch (mailError) {
+    // Log but don't block signup — user can request resend
+    console.error('[createUser] Failed to send verification email:', mailError);
+  }
+
   return {
     id,
     email: emailNorm,
@@ -2192,6 +2223,7 @@ export async function createUser(data: { email: string; name: string; passwordHa
     organizationId: orgId,
     postId: null,
     role: 'Employee',
+    isVerified: false,
   };
 }
 
@@ -2205,9 +2237,9 @@ function highestRole(roles: (string | null)[]): string {
 }
 
 /** User by id for /me. Role = highest among all posts the user holds (user_posts), so Admin stays Admin when assigned to other departments. */
-export async function getUserById(userId: string): Promise<{ id: string; email: string; name: string; organizationId: string; postId: string | null; role: string } | null> {
+export async function getUserById(userId: string): Promise<{ id: string; email: string; name: string; organizationId: string; postId: string | null; role: string; isVerified: boolean } | null> {
   const row = await get(`
-    SELECT u.id, u.email, u.name, u.organization_id, u.post_id
+    SELECT u.id, u.email, u.name, u.organization_id, u.post_id, u.is_verified
     FROM users u WHERE u.id = ?
   `, [userId]) as any;
   if (!row) return null;
@@ -2223,6 +2255,7 @@ export async function getUserById(userId: string): Promise<{ id: string; email: 
     organizationId: row.organization_id,
     postId: row.post_id,
     role,
+    isVerified: !!row.is_verified,
   };
 }
 
@@ -2248,10 +2281,10 @@ export async function getUserByPostId(postId: string): Promise<{ id: string; ema
 }
 
 /** User by email for login (case-insensitive). Role = highest among all posts the user holds (user_posts). */
-export async function getUserByEmailForLogin(email: string): Promise<{ id: string; email: string; name: string; organizationId: string; passwordHash: string; postId: string | null; role: string } | null> {
+export async function getUserByEmailForLogin(email: string): Promise<{ id: string; email: string; name: string; organizationId: string; passwordHash: string; postId: string | null; role: string; isVerified: boolean } | null> {
   const normalized = email.trim().toLowerCase();
   const row = await get(`
-    SELECT u.id, u.email, u.name, u.organization_id, u.password_hash, u.post_id
+    SELECT u.id, u.email, u.name, u.organization_id, u.password_hash, u.post_id, u.is_verified
     FROM users u WHERE LOWER(TRIM(u.email)) = ?
   `, [normalized]) as any;
   if (!row) return null;
@@ -2268,5 +2301,64 @@ export async function getUserByEmailForLogin(email: string): Promise<{ id: strin
     passwordHash: row.password_hash,
     postId: row.post_id,
     role,
+    isVerified: !!row.is_verified,
   };
+}
+
+/** Verify user email with a 6-digit verification code. */
+export async function verifyUserEmail(email: string, code: string): Promise<{ id: string; email: string; name: string; organizationId: string; postId: string | null; role: string; isVerified: boolean }> {
+  const emailNorm = email.trim().toLowerCase();
+  const user = await get(`
+    SELECT id, is_verified, verification_token, verification_token_expires_at
+    FROM users WHERE LOWER(TRIM(email)) = ?
+  `, [emailNorm]) as any;
+  if (!user) {
+    throw new Error('Пользователь не найден');
+  }
+  if (user.is_verified) {
+    throw new Error('Email уже подтвержден');
+  }
+  if (!user.verification_token || user.verification_token !== code.trim()) {
+    throw new Error('Неверный код подтверждения');
+  }
+  const expiresAt = user.verification_token_expires_at ? new Date(user.verification_token_expires_at) : null;
+  if (expiresAt && expiresAt.getTime() < Date.now()) {
+    throw new Error('Срок действия кода подтверждения истек');
+  }
+  await run(`
+    UPDATE users
+    SET is_verified = TRUE, verification_token = NULL, verification_token_expires_at = NULL
+    WHERE id = ?
+  `, [user.id]);
+
+  const updated = await getUserById(user.id);
+  if (!updated) {
+    throw new Error('Ошибка обновления пользователя');
+  }
+  return updated;
+}
+
+/** Resend the 6-digit verification code. */
+export async function resendUserVerificationCode(email: string): Promise<void> {
+  const emailNorm = email.trim().toLowerCase();
+  const user = await get(`
+    SELECT id, is_verified FROM users WHERE LOWER(TRIM(email)) = ?
+  `, [emailNorm]) as any;
+  if (!user) {
+    throw new Error('Пользователь не найден');
+  }
+  if (user.is_verified) {
+    throw new Error('Email уже подтвержден');
+  }
+  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+  // Code expires in 10 minutes
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  await run(`
+    UPDATE users
+    SET verification_token = ?, verification_token_expires_at = ?
+    WHERE id = ?
+  `, [verificationCode, expiresAt.toISOString(), user.id]);
+
+  // Send real email via Brevo
+  await sendVerificationEmail(emailNorm, verificationCode);
 }

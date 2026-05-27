@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS users (
   avatar_url      TEXT,
   password_hash   TEXT,
   post_id         TEXT REFERENCES posts(id),  -- primary position (for role/JWT)
+  is_verified     BOOLEAN DEFAULT FALSE,
+  verification_token TEXT,
+  verification_token_expires_at TIMESTAMP,
   created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -30,7 +30,11 @@ export default function Login() {
         dispatch(setOrganizations(defaultOrgs));
         saveAuth(token, user, defaultOrgs);
         navigate('/dashboard', { replace: true });
-      } catch (err) {
+      } catch (err: any) {
+        if (err && err.isVerified === false) {
+          navigate(`/verify-email?email=${encodeURIComponent(err.email || email)}`, { replace: true });
+          return;
+        }
         setError(err instanceof Error ? err.message : 'Ошибка входа');
       } finally {
         setLoading(false);
