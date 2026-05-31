@@ -9,14 +9,17 @@ export interface InstructionListItem {
   ownerPostTitle?: string;
   status: string;
   version: number;
+  content?: string | null;
+  isAcknowledged?: boolean;
   updatedAt: string;
 }
 
 export interface CreateInstructionData {
   title: string;
   postId: string;
-  ownerPostId: string;
+  ownerPostId?: string;
   status?: string;
+  content?: string;
 }
 
 export interface InstructionStep {
@@ -54,7 +57,19 @@ export const instructionsService = {
       postId: data.postId,
       ownerPostId: data.ownerPostId,
       status: data.status ?? 'draft',
+      content: data.content,
     });
+    return response.data;
+  },
+  update: async (id: string, data: Partial<InstructionListItem & { content?: string | null }>): Promise<InstructionListItem> => {
+    const response = await api.put<InstructionListItem>(`/instructions/${id}`, data);
+    return response.data;
+  },
+  acknowledge: async (id: string): Promise<void> => {
+    await api.post(`/instructions/${id}/acknowledge`);
+  },
+  getAcknowledgements: async (id: string): Promise<Array<{ userId: string; userName: string; userEmail: string; acknowledgedAt: string }>> => {
+    const response = await api.get<Array<{ userId: string; userName: string; userEmail: string; acknowledgedAt: string }>>(`/instructions/${id}/acknowledgements`);
     return response.data;
   },
   deleteStep: async (instructionId: string, stepId: string): Promise<void> => {

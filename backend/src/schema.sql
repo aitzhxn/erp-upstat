@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS instructions (
   owner_post_id  TEXT NOT NULL REFERENCES posts(id),
   status         TEXT NOT NULL,
   version        INTEGER NOT NULL DEFAULT 1,
+  content        TEXT,
   updated_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -198,4 +199,15 @@ CREATE TABLE IF NOT EXISTS audit_log (
   changes     TEXT,
   created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id);
+
+-- Instruction acknowledgements (ознакомление)
+CREATE TABLE IF NOT EXISTS instruction_acknowledgements (
+  id              TEXT PRIMARY KEY,
+  instruction_id  TEXT NOT NULL REFERENCES instructions(id) ON DELETE CASCADE,
+  user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  acknowledged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(instruction_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_acknowledgements_instruction ON instruction_acknowledgements(instruction_id);
 CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id);

@@ -68,6 +68,18 @@ export async function initDb(): Promise<void> {
   await execRaw(
     "ALTER TABLE departments ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
   );
+  await execRaw(
+    "ALTER TABLE instructions ADD COLUMN IF NOT EXISTS content TEXT"
+  );
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS instruction_acknowledgements (
+      id              TEXT PRIMARY KEY,
+      instruction_id  TEXT NOT NULL REFERENCES instructions(id) ON DELETE CASCADE,
+      user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      acknowledged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(instruction_id, user_id)
+    )
+  `);
   await seedMetricDefinitionsIfEmpty();
   await seedIfEmpty();
   await ensureSecondAdminPost();
@@ -957,11 +969,11 @@ export async function getAllowListForUser(user: { id?: string; role: string; pos
 }
 
 /** Instructions list; optional filter by postId; optional allowedPostIds (visibility: only these posts). */
-export async function getInstructions(postId?: string, allowedPostIds?: string[] | null): Promise<Array<{ id: string; title: string; postId: string; postTitle?: string; ownerPostId: string; ownerPostTitle?: string; status: string; version: number; updatedAt: string }>> {
+export async function getInstructions(postId?: string, allowedPostIds?: string[] | null): Promise<Array<{ id: string; title: string; postId: string; postTitle?: string; ownerPostId: string; ownerPostTitle?: string; status: string; version: number; content?: string | null; updatedAt: string }>> {
   let sql = `
     SELECT i.id, i.title, i.post_id AS "postId", p.title AS "postTitle",
            i.owner_post_id AS "ownerPostId", op.title AS "ownerPostTitle",
-           i.status, i.version, i.updated_at AS "updatedAt"
+           i.status, i.version, i.content, i.updated_at AS "updatedAt"
     FROM instructions i
     LEFT JOIN posts p ON p.id = i.post_id
     LEFT JOIN posts op ON op.id = i.owner_post_id
@@ -987,11 +999,11 @@ export async function getInstructions(postId?: string, allowedPostIds?: string[]
 }
 
 /** Single instruction by id. */
-export async function getInstructionById(id: string): Promise<{ id: string; title: string; postId: string; postTitle?: string; ownerPostId: string; ownerPostTitle?: string; status: string; version: number; updatedAt: string } | null> {
+export async function getInstructionById(id: string): Promise<{ id: string; title: string; postId: string; postTitle?: string; ownerPostId: string; ownerPostTitle?: string; status: string; version: number; content?: string | null; updatedAt: string } | null> {
   const row = await get(`
     SELECT i.id, i.title, i.post_id AS "postId", p.title AS "postTitle",
            i.owner_post_id AS "ownerPostId", op.title AS "ownerPostTitle",
-           i.status, i.version, i.updated_at AS "updatedAt"
+           i.status, i.version, i.content, i.updated_at AS "updatedAt"
     FROM instructions i
     LEFT JOIN posts p ON p.id = i.post_id
     LEFT JOIN posts op ON op.id = i.owner_post_id
@@ -1002,20 +1014,21 @@ export async function getInstructionById(id: string): Promise<{ id: string; titl
 }
 
 /** Create instruction. */
-export async function createInstruction(data: { id: string; title: string; postId: string; ownerPostId: string; status: string; version?: number }): Promise<void> {
+export async function createInstruction(data: { id: string; title: string; postId: string; ownerPostId: string; status: string; version?: number; content?: string }): Promise<void> {
   await run(`
-    INSERT INTO instructions (id, title, post_id, owner_post_id, status, version, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `, [data.id, data.title, data.postId, data.ownerPostId, data.status, data.version ?? 1, new Date().toISOString()]);
+    INSERT INTO instructions (id, title, post_id, owner_post_id, status, version, content, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `, [data.id, data.title, data.postId, data.ownerPostId, data.status, data.version ?? 1, data.content ?? null, new Date().toISOString()]);
 }
 
 /** Update instruction. */
-export async function updateInstruction(id: string, data: Partial<{ title: string; status: string; version: number }>): Promise<void> {
+export async function updateInstruction(id: string, data: Partial<{ title: string; status: string; version: number; content: string | null }>): Promise<void> {
   const fields: string[] = ['updated_at = ?'];
   const values: any[] = [new Date().toISOString()];
   if (data.title !== undefined) { fields.push('title = ?'); values.push(data.title); }
   if (data.status !== undefined) { fields.push('status = ?'); values.push(data.status); }
   if (data.version !== undefined) { fields.push('version = ?'); values.push(data.version); }
+  if (data.content !== undefined) { fields.push('content = ?'); values.push(data.content); }
   values.push(id);
   await run(`UPDATE instructions SET ${fields.join(', ')} WHERE id = ?`, [...values]);
 }
@@ -1023,7 +1036,45 @@ export async function updateInstruction(id: string, data: Partial<{ title: strin
 /** Delete instruction and its steps. */
 export async function deleteInstruction(id: string): Promise<void> {
   await run('DELETE FROM instruction_steps WHERE instruction_id = ?', [id]);
+  await run('DELETE FROM instruction_acknowledgements WHERE instruction_id = ?', [id]);
   await run('DELETE FROM instructions WHERE id = ?', [id]);
+}
+
+/** Acknowledge an instruction for a user. */
+export async function acknowledgeInstruction(instructionId: string, userId: string): Promise<void> {
+  const id = `ack${Date.now()}`;
+  await run(`
+    INSERT INTO instruction_acknowledgements (id, instruction_id, user_id, acknowledged_at)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT (instruction_id, user_id) DO NOTHING
+  `, [id, instructionId, userId]);
+}
+
+/** Check if user has acknowledged an instruction. */
+export async function hasUserAcknowledged(instructionId: string, userId: string): Promise<boolean> {
+  const row = await get(`
+    SELECT 1 FROM instruction_acknowledgements
+    WHERE instruction_id = ? AND user_id = ?
+    LIMIT 1
+  `, [instructionId, userId]);
+  return !!row;
+}
+
+/** Get list of user acknowledgements for an instruction. */
+export async function getInstructionAcknowledgements(instructionId: string): Promise<Array<{ userId: string; userName: string; userEmail: string; acknowledgedAt: string }>> {
+  const rows = await all(`
+    SELECT a.user_id AS "userId", u.name AS "userName", u.email AS "userEmail", a.acknowledged_at AS "acknowledgedAt"
+    FROM instruction_acknowledgements a
+    JOIN users u ON u.id = a.user_id
+    WHERE a.instruction_id = ?
+    ORDER BY a.acknowledged_at DESC
+  `, [instructionId]) as any[];
+  return rows.map(r => ({
+    userId: r.userId,
+    userName: r.userName,
+    userEmail: r.userEmail,
+    acknowledgedAt: r.acknowledgedAt || '',
+  }));
 }
 
 /** Instruction steps by instruction_id. */

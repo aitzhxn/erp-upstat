@@ -22,14 +22,47 @@ export default function InstructionsList() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [posts, setPosts] = useState<PostWithHolder[]>([]);
+  const [myPosts, setMyPosts] = useState<PostWithHolder[]>([]);
   const [createTitle, setCreateTitle] = useState('');
   const [createPostId, setCreatePostId] = useState('');
-  const [createOwnerPostId, setCreateOwnerPostId] = useState('');
-  const [createStatus, setCreateStatus] = useState('draft');
   const [createSubmitting, setCreateSubmitting] = useState(false);
 
   const refetch = () => {
     instructionsService.getList(postIdFilter).then(setInstructions).catch(() => setInstructions([]));
+  };
+
+  const getDescendantPostIds = (allPosts: PostWithHolder[], startPostIds: string[]): string[] => {
+    const descendants: string[] = [];
+    const queue = [...startPostIds];
+    const visited = new Set<string>(startPostIds);
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      const children = allPosts.filter(p => p.parentPostId === currentId);
+      for (const child of children) {
+        if (!visited.has(child.id)) {
+          visited.add(child.id);
+          descendants.push(child.id);
+          queue.push(child.id);
+        }
+      }
+    }
+    return descendants;
+  };
+
+  const getFilteredPosts = () => {
+    if (myPosts.length === 0) {
+      return posts;
+    }
+
+    const isSuperAdmin = myPosts.some(p => p.id === 'p1');
+    if (isSuperAdmin) {
+      return posts;
+    }
+
+    const myPostIds = myPosts.map(p => p.id);
+    const descendantIds = getDescendantPostIds(posts, myPostIds);
+    return posts.filter(p => descendantIds.includes(p.id));
   };
 
   useEffect(() => {
@@ -44,10 +77,9 @@ export default function InstructionsList() {
   useEffect(() => {
     if (showCreateModal) {
       orgService.getPosts().then(setPosts).catch(() => setPosts([]));
+      orgService.getMyPosts().then(setMyPosts).catch(() => setMyPosts([]));
       setCreateTitle('');
       setCreatePostId(postIdFilter ?? '');
-      setCreateOwnerPostId(postIdFilter ?? '');
-      setCreateStatus('draft');
     }
   }, [showCreateModal, postIdFilter]);
 
@@ -155,76 +187,50 @@ export default function InstructionsList() {
       <Modal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        title="Create Instruction"
+        title="Создать регламент"
         size="md"
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-textPrimary mb-2">Title *</label>
+            <label className="block text-sm font-medium text-textPrimary mb-2">Название регламента *</label>
             <input
               type="text"
               value={createTitle}
               onChange={(e) => setCreateTitle(e.target.value)}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary"
+              placeholder="Например: Регламент обработки заказов"
+              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary placeholder:text-textSecondary/50"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-textPrimary mb-2">Post (Position) *</label>
+            <label className="block text-sm font-medium text-textPrimary mb-2">Должность сотрудника *</label>
             <select
               value={createPostId}
               onChange={(e) => setCreatePostId(e.target.value)}
               className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary"
               required
             >
-              <option value="">— Select —</option>
-              {posts.map((p) => (
+              <option value="">— Выберите должность —</option>
+              {getFilteredPosts().map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.title} ({p.id})
                 </option>
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-textPrimary mb-2">Owner Post *</label>
-            <select
-              value={createOwnerPostId}
-              onChange={(e) => setCreateOwnerPostId(e.target.value)}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary"
-              required
-            >
-              <option value="">— Select —</option>
-              {posts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title} ({p.id})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-textPrimary mb-2">Status</label>
-            <select
-              value={createStatus}
-              onChange={(e) => setCreateStatus(e.target.value)}
-              className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-textPrimary"
-            >
-              <option value="draft">Draft</option>
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-            </select>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowCreateModal(false)}>Cancel</Button>
+          <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
+            <Button variant="outline" onClick={() => setShowCreateModal(false)}>
+              Отмена
+            </Button>
             <Button
-              disabled={!createTitle.trim() || !createPostId || !createOwnerPostId || createSubmitting}
+              disabled={!createTitle.trim() || !createPostId || createSubmitting}
               onClick={async () => {
-                if (!createTitle.trim() || !createPostId || !createOwnerPostId) return;
+                if (!createTitle.trim() || !createPostId) return;
                 setCreateSubmitting(true);
                 try {
                   const created = await instructionsService.create({
                     title: createTitle.trim(),
                     postId: createPostId,
-                    ownerPostId: createOwnerPostId,
-                    status: createStatus,
+                    status: 'draft',
                   });
                   setShowCreateModal(false);
                   refetch();
@@ -236,7 +242,7 @@ export default function InstructionsList() {
                 }
               }}
             >
-              {createSubmitting ? 'Creating…' : 'Create'}
+              {createSubmitting ? 'Создание…' : 'Создать'}
             </Button>
           </div>
         </div>
