@@ -4,7 +4,9 @@ export interface InstructionListItem {
   id: string;
   title: string;
   postId: string;
+  postTitle?: string;
   ownerPostId: string;
+  ownerPostTitle?: string;
   status: string;
   version: number;
   updatedAt: string;

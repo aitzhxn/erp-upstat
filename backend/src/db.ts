@@ -18,6 +18,7 @@ function rowToPost(row: any): Omit<PostWithHolder, 'currentHolder'> {
     code: row.code || undefined,
     cardColor: row.card_color || undefined,
     cardNotes: row.card_notes || undefined,
+    createdBy: row.created_by || undefined,
   };
 }
 
@@ -542,6 +543,7 @@ export async function getPostsWithHolders(allowedPostIds?: string[] | null): Pro
   let sql = `
     SELECT p.id, p.title, p.description, p.parent_post_id, p.department_id, p.role, p.level, p.order_index, p.code,
            p.card_color, p.card_notes,
+           (SELECT user_id FROM audit_log WHERE entity_type = 'post' AND entity_id = p.id AND action = 'created' ORDER BY created_at ASC LIMIT 1) AS created_by,
            u.id AS user_id, u.name, u.email, u.avatar_url
     FROM posts p
     LEFT JOIN user_posts up ON up.post_id = p.id
@@ -570,6 +572,7 @@ export async function getPostsForUser(userId: string): Promise<PostWithHolder[]>
   const rows = await all(`
     SELECT p.id, p.title, p.description, p.parent_post_id, p.department_id, p.role, p.level, p.order_index, p.code,
            p.card_color, p.card_notes,
+           (SELECT user_id FROM audit_log WHERE entity_type = 'post' AND entity_id = p.id AND action = 'created' ORDER BY created_at ASC LIMIT 1) AS created_by,
            u.id AS user_id, u.name, u.email, u.avatar_url
     FROM posts p
     LEFT JOIN user_posts up ON up.post_id = p.id
@@ -585,6 +588,7 @@ export async function getPostById(id: string): Promise<PostWithHolder | null> {
   const row = await get(`
     SELECT p.id, p.title, p.description, p.parent_post_id, p.department_id, p.role, p.level, p.order_index, p.code,
            p.card_color, p.card_notes,
+           (SELECT user_id FROM audit_log WHERE entity_type = 'post' AND entity_id = p.id AND action = 'created' ORDER BY created_at ASC LIMIT 1) AS created_by,
            u.id AS user_id, u.name, u.email, u.avatar_url
     FROM posts p
     LEFT JOIN user_posts up ON up.post_id = p.id
@@ -927,34 +931,72 @@ export async function getAncestorPostIds(postId: string): Promise<string[]> {
  *  - Employee / Inspector / other  → only their own assigned post IDs ([] if none)
  */
 export async function getAllowListForUser(user: { id?: string; role: string; postId?: string | null } | undefined): Promise<string[] | null> {
-  if (!user?.role) return [];
-  // For now, anyone logged in can see the whole tree. 
-  // Editing permissions are still restricted to Admin/Dept Head in routes.
-  return null;
+  if (!user?.id) return [];
+  
+  // Get all posts held by this user from user_posts table
+  const userPosts = await all('SELECT post_id AS "postId" FROM user_posts WHERE user_id = ?', [user.id]) as Array<{ postId: string }>;
+  const postIds = userPosts.map(up => up.postId);
+  
+  // Also include primary postId if not already in list
+  if (user.postId && !postIds.includes(user.postId)) {
+    postIds.push(user.postId);
+  }
+  
+  if (postIds.length === 0) return [];
+  
+  // Get subtree for each post and combine
+  const allowedSet = new Set<string>();
+  for (const pid of postIds) {
+    const subtree = await getPostSubtreeIds(pid);
+    for (const id of subtree) {
+      allowedSet.add(id);
+    }
+  }
+  
+  return Array.from(allowedSet);
 }
 
 /** Instructions list; optional filter by postId; optional allowedPostIds (visibility: only these posts). */
-export async function getInstructions(postId?: string, allowedPostIds?: string[] | null): Promise<Array<{ id: string; title: string; postId: string; ownerPostId: string; status: string; version: number; updatedAt: string }>> {
-  let sql = 'SELECT id, title, post_id AS "postId", owner_post_id AS "ownerPostId", status, version, updated_at AS "updatedAt" FROM instructions';
+export async function getInstructions(postId?: string, allowedPostIds?: string[] | null): Promise<Array<{ id: string; title: string; postId: string; postTitle?: string; ownerPostId: string; ownerPostTitle?: string; status: string; version: number; updatedAt: string }>> {
+  let sql = `
+    SELECT i.id, i.title, i.post_id AS "postId", p.title AS "postTitle",
+           i.owner_post_id AS "ownerPostId", op.title AS "ownerPostTitle",
+           i.status, i.version, i.updated_at AS "updatedAt"
+    FROM instructions i
+    LEFT JOIN posts p ON p.id = i.post_id
+    LEFT JOIN posts op ON op.id = i.owner_post_id
+  `;
   const params: (string | number)[] = [];
   const conditions: string[] = [];
   if (postId) {
-    conditions.push('post_id = ?');
+    conditions.push('i.post_id = ?');
     params.push(postId);
   }
-  if (allowedPostIds != null && allowedPostIds.length > 0) {
-    conditions.push(`post_id IN (${allowedPostIds.map(() => '?').join(',')})`);
-    params.push(...allowedPostIds);
+  if (allowedPostIds != null) {
+    if (allowedPostIds.length > 0) {
+      conditions.push(`i.post_id IN (${allowedPostIds.map(() => '?').join(',')})`);
+      params.push(...allowedPostIds);
+    } else {
+      conditions.push('1=0');
+    }
   }
   if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
-  sql += ' ORDER BY updated_at DESC';
+  sql += ' ORDER BY i.updated_at DESC';
   const rows = (params.length ? await all(sql, [...params]) : await all(sql, [])) as any[];
   return rows.map(r => ({ ...r, updatedAt: r.updatedAt || new Date().toISOString() }));
 }
 
 /** Single instruction by id. */
-export async function getInstructionById(id: string): Promise<{ id: string; title: string; postId: string; ownerPostId: string; status: string; version: number; updatedAt: string } | null> {
-  const row = await get('SELECT id, title, post_id AS "postId", owner_post_id AS "ownerPostId", status, version, updated_at AS "updatedAt" FROM instructions WHERE id = ?', [id]) as any;
+export async function getInstructionById(id: string): Promise<{ id: string; title: string; postId: string; postTitle?: string; ownerPostId: string; ownerPostTitle?: string; status: string; version: number; updatedAt: string } | null> {
+  const row = await get(`
+    SELECT i.id, i.title, i.post_id AS "postId", p.title AS "postTitle",
+           i.owner_post_id AS "ownerPostId", op.title AS "ownerPostTitle",
+           i.status, i.version, i.updated_at AS "updatedAt"
+    FROM instructions i
+    LEFT JOIN posts p ON p.id = i.post_id
+    LEFT JOIN posts op ON op.id = i.owner_post_id
+    WHERE i.id = ?
+  `, [id]) as any;
   if (!row) return null;
   return { ...row, updatedAt: row.updatedAt || new Date().toISOString() };
 }
@@ -1775,14 +1817,16 @@ export async function createWorkPlan(data: {
 }
 
 /** Get single work plan by id. */
-export async function getWorkPlanById(id: string): Promise<{ id: string; title: string; postId: string; department: string | null; status: string; dueDate: string | null; workflowStatus: string; authorUserId: string | null; approverPostId: string | null; submittedAt: string | null; approvedAt: string | null; rejectedAt: string | null; rejectionComment: string | null; approvalComment: string | null; period: string | null; messageText: string | null; createdAt: string; updatedAt: string } | null> {
+export async function getWorkPlanById(id: string): Promise<{ id: string; title: string; postId: string; postTitle?: string; department: string | null; status: string; dueDate: string | null; workflowStatus: string; authorUserId: string | null; approverPostId: string | null; submittedAt: string | null; approvedAt: string | null; rejectedAt: string | null; rejectionComment: string | null; approvalComment: string | null; period: string | null; messageText: string | null; createdAt: string; updatedAt: string } | null> {
   const row = await get(`
-    SELECT id, title, post_id AS "postId", department, status, due_date AS "dueDate",
-           COALESCE(workflow_status, 'draft') AS "workflowStatus", author_user_id AS "authorUserId",
-           approver_post_id AS "approverPostId", submitted_at AS "submittedAt", approved_at AS "approvedAt",
-           rejected_at AS "rejectedAt", rejection_comment AS "rejectionComment", approval_comment AS "approvalComment", period, message_text AS "messageText",
-           created_at AS "createdAt", updated_at AS "updatedAt"
-    FROM work_plans WHERE id = ?
+    SELECT wp.id, wp.title, wp.post_id AS "postId", p.title AS "postTitle", wp.department, wp.status, wp.due_date AS "dueDate",
+           COALESCE(wp.workflow_status, 'draft') AS "workflowStatus", wp.author_user_id AS "authorUserId",
+           wp.approver_post_id AS "approverPostId", wp.submitted_at AS "submittedAt", wp.approved_at AS "approvedAt",
+           wp.rejected_at AS "rejectedAt", wp.rejection_comment AS "rejectionComment", wp.approval_comment AS "approvalComment", wp.period, wp.message_text AS "messageText",
+           wp.created_at AS "createdAt", wp.updated_at AS "updatedAt"
+    FROM work_plans wp
+    LEFT JOIN posts p ON p.id = wp.post_id
+    WHERE wp.id = ?
   `, [id]) as any;
   if (!row) return null;
   return { ...row, dueDate: row.dueDate ?? null, department: row.department ?? null, authorUserId: row.authorUserId ?? null, approverPostId: row.approverPostId ?? null, submittedAt: row.submittedAt ?? null, approvedAt: row.approvedAt ?? null, rejectedAt: row.rejectedAt ?? null, rejectionComment: row.rejectionComment ?? null, approvalComment: row.approvalComment ?? null, period: row.period ?? null, messageText: row.messageText ?? null };
@@ -1867,31 +1911,33 @@ export async function requestRevisionWorkPlan(id: string, comment?: string | nul
 }
 
 /** Work plans list; optional filter by postId, workflowStatus; optional allowedPostIds; optional approverPostIds (for "на моё согласование"). */
-export async function getWorkPlans(opts: { postId?: string; allowedPostIds?: string[] | null; workflowStatus?: WorkPlanWorkflowStatus; approverPostIds?: string[] | null }): Promise<Array<{ id: string; title: string; postId: string; department: string | null; status: string; dueDate: string | null; workflowStatus: string; authorUserId: string | null; approverPostId: string | null; submittedAt: string | null; approvedAt: string | null; rejectedAt: string | null; rejectionComment: string | null; approvalComment: string | null; period: string | null; messageText: string | null; createdAt: string; updatedAt: string }>> {
+export async function getWorkPlans(opts: { postId?: string; allowedPostIds?: string[] | null; workflowStatus?: WorkPlanWorkflowStatus; approverPostIds?: string[] | null }): Promise<Array<{ id: string; title: string; postId: string; postTitle?: string; department: string | null; status: string; dueDate: string | null; workflowStatus: string; authorUserId: string | null; approverPostId: string | null; submittedAt: string | null; approvedAt: string | null; rejectedAt: string | null; rejectionComment: string | null; approvalComment: string | null; period: string | null; messageText: string | null; createdAt: string; updatedAt: string }>> {
   if (opts.allowedPostIds && opts.allowedPostIds.length > 500) {
     throw new Error('Too many IDs requested');
   }
   if (opts.approverPostIds && opts.approverPostIds.length > 500) {
     throw new Error('Too many approver IDs requested');
   }
-  let sql = `SELECT id, title, post_id AS "postId", department, status, due_date AS "dueDate",
-    COALESCE(workflow_status, 'draft') AS "workflowStatus", author_user_id AS "authorUserId", approver_post_id AS "approverPostId",
-    submitted_at AS "submittedAt", approved_at AS "approvedAt", rejected_at AS "rejectedAt", rejection_comment AS "rejectionComment", approval_comment AS "approvalComment", period, message_text AS "messageText",
-    created_at AS "createdAt", updated_at AS "updatedAt" FROM work_plans`;
+  let sql = `SELECT wp.id, wp.title, wp.post_id AS "postId", p.title AS "postTitle", wp.department, wp.status, wp.due_date AS "dueDate",
+    COALESCE(wp.workflow_status, 'draft') AS "workflowStatus", wp.author_user_id AS "authorUserId", wp.approver_post_id AS "approverPostId",
+    wp.submitted_at AS "submittedAt", wp.approved_at AS "approvedAt", wp.rejected_at AS "rejectedAt", wp.rejection_comment AS "rejectionComment", wp.approval_comment AS "approvalComment", wp.period, wp.message_text AS "messageText",
+    wp.created_at AS "createdAt", wp.updated_at AS "updatedAt"
+    FROM work_plans wp
+    LEFT JOIN posts p ON p.id = wp.post_id`;
   const params: (string | number)[] = [];
   const conditions: string[] = [];
-  if (opts.postId) { conditions.push('post_id = ?'); params.push(opts.postId); }
+  if (opts.postId) { conditions.push('wp.post_id = ?'); params.push(opts.postId); }
   if (opts.allowedPostIds != null && opts.allowedPostIds.length > 0) {
-    conditions.push(`post_id IN (${opts.allowedPostIds.map(() => '?').join(',')})`);
+    conditions.push(`wp.post_id IN (${opts.allowedPostIds.map(() => '?').join(',')})`);
     params.push(...opts.allowedPostIds);
   }
   if (opts.approverPostIds != null && opts.approverPostIds.length > 0) {
-    conditions.push(`approver_post_id IN (${opts.approverPostIds.map(() => '?').join(',')})`);
+    conditions.push(`wp.approver_post_id IN (${opts.approverPostIds.map(() => '?').join(',')})`);
     params.push(...opts.approverPostIds);
   }
-  if (opts.workflowStatus) { conditions.push('(workflow_status = ? OR (workflow_status IS NULL AND ? = \'draft\'))'); params.push(opts.workflowStatus, opts.workflowStatus); }
+  if (opts.workflowStatus) { conditions.push('(wp.workflow_status = ? OR (wp.workflow_status IS NULL AND ? = \'draft\'))'); params.push(opts.workflowStatus, opts.workflowStatus); }
   if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
-  sql += ' ORDER BY updated_at DESC, due_date, title';
+  sql += ' ORDER BY wp.updated_at DESC, wp.due_date, wp.title';
   const rows = (params.length ? await all(sql, [...params]) : await all(sql, [])) as any[];
   return rows.map(r => ({ ...r, dueDate: r.dueDate ?? null, department: r.department ?? null, authorUserId: r.authorUserId ?? null, approverPostId: r.approverPostId ?? null, submittedAt: r.submittedAt ?? null, approvedAt: r.approvedAt ?? null, rejectedAt: r.rejectedAt ?? null, rejectionComment: r.rejectionComment ?? null, approvalComment: r.approvalComment ?? null, period: r.period ?? null, messageText: r.messageText ?? null }));
 }
@@ -1928,6 +1974,10 @@ export async function updateWorkPlanTask(id: string, data: Partial<{ title: stri
 
 export async function deleteWorkPlanTask(id: string): Promise<void> {
   await run('DELETE FROM work_plan_tasks WHERE id = ?', [id]);
+}
+
+export async function deleteWorkPlanTasks(workPlanId: string): Promise<void> {
+  await run('DELETE FROM work_plan_tasks WHERE work_plan_id = ?', [workPlanId]);
 }
 
 /** Delete work plan by id (author or admin only, draft/rejected/revision_requested status). */
@@ -2375,3 +2425,15 @@ export async function resendUserVerificationCode(email: string): Promise<void> {
   // Send real email via Brevo
   await sendVerificationEmail(emailNorm, verificationCode);
 }
+
+/** Get creator user ID of a post from audit log. */
+export async function getPostCreator(postId: string): Promise<string | null> {
+  const log = await get(`
+    SELECT user_id FROM audit_log
+    WHERE entity_type = 'post' AND entity_id = ? AND action = 'created'
+    ORDER BY created_at ASC
+    LIMIT 1
+  `, [postId]) as any;
+  return log ? log.user_id : null;
+}
+

@@ -14,6 +14,7 @@ export interface WorkPlanItem {
   id: string;
   title: string;
   postId: string;
+  postTitle?: string;
   department: string | null;
   status: string;
   dueDate: string | null;

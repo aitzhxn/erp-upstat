@@ -45,6 +45,7 @@ export interface Post {
   cardColor?: string;
   /** Optional text shown on org chart card */
   cardNotes?: string;
+  createdBy?: string;
 }
 
 /** Кто занимает пост (с бэкенда). null = вакансия. */

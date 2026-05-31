@@ -131,10 +131,10 @@ function JourneySteps({ state }: { state: WorkPlanMachineState }) {
               ${done
                 ? 'border-primary bg-primary text-primaryForeground'
                 : errActive
-                ? 'border-primary/30 bg-primary/10 text-primary'
-                : active
-                ? 'border-primary bg-primary text-primaryForeground'
-                : 'border-border bg-surface text-textSecondary'}
+                  ? 'border-primary/30 bg-primary/10 text-primary'
+                  : active
+                    ? 'border-primary bg-primary text-primaryForeground'
+                    : 'border-border bg-surface text-textSecondary'}
             `}>
               {done && <Check className="w-3 h-3" />}
               {errActive && <AlertCircle className="w-3 h-3" />}
@@ -321,10 +321,10 @@ export default function WorkPlansList() {
     } catch (e) { console.error(e); }
   };
 
-  const handleLift     = async () => { await workPlanHook.lift(bossComment.trim() || undefined); setBossComment(''); refetch(); };
-  const handleRefract  = async () => { if (!bossComment.trim()) return; await workPlanHook.refract(bossComment.trim()); setBossComment(''); refetch(); };
-  const handleRestruc  = async () => { if (!bossComment.trim()) return; await workPlanHook.restructure(bossComment.trim()); setBossComment(''); refetch(); };
-  const handleDelete   = (id: string) => setDeletePlanId(id);
+  const handleLift = async () => { await workPlanHook.lift(bossComment.trim() || undefined); setBossComment(''); refetch(); };
+  const handleRefract = async () => { if (!bossComment.trim()) return; await workPlanHook.refract(bossComment.trim()); setBossComment(''); refetch(); };
+  const handleRestruc = async () => { if (!bossComment.trim()) return; await workPlanHook.restructure(bossComment.trim()); setBossComment(''); refetch(); };
+  const handleDelete = (id: string) => setDeletePlanId(id);
 
   const confirmDelete = async () => {
     if (!deletePlanId) return;
@@ -797,10 +797,10 @@ function WorkPlanDetail({
       {/* Fields grid */}
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: 'Период',    value: plan.period },
-          { label: 'Отдел',     value: plan.department },
-          { label: 'Срок',      value: formatDate(plan.dueDate) },
-          { label: 'Должность', value: plan.postId },
+          { label: 'Период', value: plan.period },
+          { label: 'Отдел', value: plan.department },
+          { label: 'Срок', value: formatDate(plan.dueDate) },
+          { label: 'Должность', value: plan.postTitle || plan.postId },
         ].map(({ label, value }) => (
           <div key={label} className="border border-border rounded p-3">
             <div className="text-xs text-textSecondary font-medium uppercase tracking-wide mb-1">{label}</div>

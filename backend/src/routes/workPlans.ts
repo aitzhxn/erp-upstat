@@ -18,6 +18,7 @@ import {
   createWorkPlanTask,
   updateWorkPlanTask,
   deleteWorkPlanTask,
+  deleteWorkPlanTasks,
   deleteWorkPlan,
   getWorkPlanNotificationCount,
   getWorkPlanNotifications,
@@ -26,6 +27,34 @@ import {
 } from '../db';
 
 const router = Router();
+
+/** Parse messageText and sync tasks. Lines like "1. Task title" or "- Task title" or "* Task title". */
+async function syncTasksFromMessageText(workPlanId: string, messageText: string | null): Promise<void> {
+  await deleteWorkPlanTasks(workPlanId);
+  if (!messageText?.trim()) return;
+  const lines = messageText.split(/\r?\n/);
+  let orderIndex = 0;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const numberMatch = trimmed.match(/^\d+[\.\)]\s*(.*)$/);
+    const bulletMatch = trimmed.match(/^[\-\*]\s*(.*)$/);
+    let taskTitle = '';
+    if (numberMatch) {
+      taskTitle = numberMatch[1].trim();
+    } else if (bulletMatch) {
+      taskTitle = bulletMatch[1].trim();
+    }
+    if (taskTitle) {
+      await createWorkPlanTask({
+        workPlanId,
+        title: taskTitle,
+        dueDate: null,
+        orderIndex: orderIndex++,
+      });
+    }
+  }
+}
 
 /** Get work plans; optional ?postId= & ?workflowStatus= & ?forMyApproval=1 (plans waiting for my approval). */
 router.get('/', authenticate, async (req: AuthRequest, res) => {
@@ -78,7 +107,11 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     period: period ?? null,
     messageText: typeof messageText === 'string' ? messageText.trim() || null : null,
   });
-  res.status(201).json(created);
+  if (created.messageText) {
+    await syncTasksFromMessageText(created.id, created.messageText);
+  }
+  const updated = await getWorkPlanById(created.id);
+  res.status(201).json(updated!);
 });
 
 /** Update work plan. Author (draft/rejected/revision_requested) or Admin/Department Head. */
@@ -102,6 +135,9 @@ router.put('/:id', authenticate, async (req: AuthRequest, res) => {
   if (period !== undefined) updates.period = period;
   if (messageText !== undefined) updates.messageText = typeof messageText === 'string' ? messageText.trim() || null : null;
   if (Object.keys(updates).length > 0) await updateWorkPlan(id, updates as any);
+  if (messageText !== undefined) {
+    await syncTasksFromMessageText(id, typeof messageText === 'string' ? messageText.trim() || null : null);
+  }
   const updated = await getWorkPlanById(id);
   res.json(updated!);
 });

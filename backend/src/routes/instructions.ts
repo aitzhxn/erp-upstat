@@ -26,10 +26,16 @@ router.get('/', authenticate, async (req: AuthRequest, res) => {
 });
 
 /** Get steps for an instruction. */
-router.get('/:id/steps', authenticate, async (req, res) => {
+router.get('/:id/steps', authenticate, async (req: AuthRequest, res) => {
   const instructionId = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
   const instruction = await getInstructionById(instructionId);
   if (!instruction) return res.status(404).json({ error: 'Instruction not found' });
+  
+  const allowed = await getAllowListForUser(req.user);
+  if (allowed != null && !allowed.includes(instruction.postId)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+  
   const steps = await getInstructionSteps(instructionId);
   res.json(steps);
 });
@@ -77,14 +83,17 @@ router.delete('/:id/steps/:stepId', authenticate, requireRole('Admin', 'Departme
 });
 
 /** Get instruction by ID. Any authenticated user. */
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', authenticate, async (req: AuthRequest, res) => {
   const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
   const instruction = await getInstructionById(id);
-  if (instruction) {
-    res.json(instruction);
-  } else {
-    res.status(404).json({ error: 'Instruction not found' });
+  if (!instruction) return res.status(404).json({ error: 'Instruction not found' });
+  
+  const allowed = await getAllowListForUser(req.user);
+  if (allowed != null && !allowed.includes(instruction.postId)) {
+    return res.status(403).json({ error: 'Access denied' });
   }
+  
+  res.json(instruction);
 });
 
 /** Create instruction. Admin or Department Head only. */

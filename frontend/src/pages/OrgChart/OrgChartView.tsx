@@ -10,6 +10,8 @@ import ProtectedAction from '@/components/rbac/ProtectedAction';
 import type { PostWithHolder, PostHolder } from '@/types';
 import { orgService } from '@/services/orgService';
 import { auditService, type AuditLogEntry } from '@/services/auditService';
+import { useSelector } from 'react-redux';
+import type { RootState } from '@/store/store';
 
 /** Аватар: картинка или инициалы. */
 function HolderAvatar({ holder, size = 'md' }: { holder: PostHolder; size?: 'sm' | 'md' }) {
@@ -180,7 +182,9 @@ const initialPostsMock: PostWithHolder[] = [
 ];
 
 export default function OrgChartView() {
+  const currentUser = useSelector((state: RootState) => state.auth.user);
   const [posts, setPosts] = useState<PostWithHolder[]>(initialPostsMock);
+  const [myPosts, setMyPosts] = useState<PostWithHolder[]>([]);
   const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPost, setSelectedPost] = useState<PostWithHolder | null>(null);
@@ -203,8 +207,17 @@ export default function OrgChartView() {
   const [exporting, setExporting] = useState<'png' | 'pdf' | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
+  const refetchMyPosts = () => {
+    if (currentUser?.id) {
+      orgService.getMyPosts().then(setMyPosts).catch(() => setMyPosts([]));
+    } else {
+      setMyPosts([]);
+    }
+  };
+
   const refetchPosts = () => {
     setLoadError(null);
+    refetchMyPosts();
     return orgService.getPosts()
       .then((data) => {
         setPosts(Array.isArray(data) ? data : []);
@@ -220,7 +233,41 @@ export default function OrgChartView() {
 
   useEffect(() => {
     refetchPosts();
-  }, []);
+  }, [currentUser?.id]);
+
+  const myAllowedPostIds = useMemo(() => {
+    if (currentUser?.role === 'Admin') {
+      return new Set(posts.map((p) => p.id));
+    }
+    const allowed = new Set<string>();
+    const getSubtree = (id: string) => {
+      if (allowed.has(id)) return;
+      allowed.add(id);
+      posts.filter((p) => p.parentPostId === id).forEach((c) => getSubtree(c.id));
+    };
+    myPosts.forEach((mp) => getSubtree(mp.id));
+    return allowed;
+  }, [posts, myPosts, currentUser]);
+
+  const isAtTheVeryTop = useMemo(() => {
+    return currentUser?.role === 'Admin' || myPosts.some((mp) => !mp.parentPostId);
+  }, [myPosts, currentUser]);
+
+  const isSuperAdmin = useMemo(() => {
+    return myPosts.some((mp) => mp.id === 'p1');
+  }, [myPosts]);
+
+  const canModifySelectedPost = useMemo(() => {
+    if (!selectedPost) return false;
+    if (isSuperAdmin) return true;
+    if (selectedPost.parentPostId === null) {
+      if (selectedPost.createdBy) {
+        return selectedPost.createdBy === currentUser?.id;
+      }
+      return currentUser?.role === 'Admin';
+    }
+    return true;
+  }, [selectedPost, currentUser, isSuperAdmin]);
 
   useEffect(() => {
     orgService.getDepartments().then((list) => {
@@ -389,12 +436,14 @@ export default function OrgChartView() {
             Схема строится из должностей (постов). Редактируйте структуру в режиме конструктора.
           </p>
         </div>
-        <ProtectedAction action="edit" resource="org">
-          <Button variant="outline" size="sm" onClick={() => handleAddPost(null)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Добавить корневую должность
-          </Button>
-        </ProtectedAction>
+        {isAtTheVeryTop && (
+          <ProtectedAction action="edit" resource="org">
+            <Button variant="outline" size="sm" onClick={() => handleAddPost(null)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Добавить корневую должность
+            </Button>
+          </ProtectedAction>
+        )}
       </div>
 
       <div className="flex gap-4 items-center flex-wrap">
@@ -548,7 +597,7 @@ export default function OrgChartView() {
           </Card>
         </div>
 
-        {selectedPost ? (
+        {selectedPost && (isSuperAdmin || myAllowedPostIds.has(selectedPost.id)) ? (
           <Card>
             <CardContent className="p-6">
               <div className="space-y-4">
@@ -615,39 +664,47 @@ export default function OrgChartView() {
                         Добавить дочернюю должность
                       </Button>
                     </ProtectedAction>
-                    <ProtectedAction action="edit" resource="org">
-                      <Button variant="outline" size="sm" className="w-full justify-start" onClick={handleEditPost}>
-                        <Pencil className="w-4 h-4 mr-2" />
-                        Редактировать должность
-                      </Button>
-                    </ProtectedAction>
-                    <ProtectedAction action="edit" resource="org">
-                      <Button variant="outline" size="sm" className="w-full justify-start" onClick={handleMovePost}>
-                        <Move className="w-4 h-4 mr-2" />
-                        Переместить в дереве
-                      </Button>
-                    </ProtectedAction>
-                    <ProtectedAction action="edit" resource="org">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-start"
-                        onClick={() => setShowDeleteModal(true)}
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Удалить должность
-                      </Button>
-                    </ProtectedAction>
+                    {canModifySelectedPost && (
+                      <ProtectedAction action="edit" resource="org">
+                        <Button variant="outline" size="sm" className="w-full justify-start" onClick={handleEditPost}>
+                          <Pencil className="w-4 h-4 mr-2" />
+                          Редактировать должность
+                        </Button>
+                      </ProtectedAction>
+                    )}
+                    {canModifySelectedPost && (
+                      <ProtectedAction action="edit" resource="org">
+                        <Button variant="outline" size="sm" className="w-full justify-start" onClick={handleMovePost}>
+                          <Move className="w-4 h-4 mr-2" />
+                          Переместить в дереве
+                        </Button>
+                      </ProtectedAction>
+                    )}
+                    {canModifySelectedPost && (
+                      <ProtectedAction action="edit" resource="org">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start"
+                          onClick={() => setShowDeleteModal(true)}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Удалить должность
+                        </Button>
+                      </ProtectedAction>
+                    )}
                   </div>
                 </div>
 
                 <div className="pt-4 border-t border-border space-y-2">
-                  <ProtectedAction action="edit" resource="org">
-                    <Button variant="outline" className="w-full" onClick={() => setShowAssignModal(true)}>
-                      Назначить / переместить сотрудника
-                    </Button>
-                  </ProtectedAction>
-                  {selectedPost.currentHolder && (
+                  {canModifySelectedPost && (
+                    <ProtectedAction action="edit" resource="org">
+                      <Button variant="outline" className="w-full" onClick={() => setShowAssignModal(true)}>
+                        Назначить / переместить сотрудника
+                      </Button>
+                    </ProtectedAction>
+                  )}
+                  {canModifySelectedPost && selectedPost.currentHolder && (
                     <ProtectedAction action="edit" resource="org">
                       <Button
                         variant="outline"
@@ -697,15 +754,9 @@ export default function OrgChartView() {
               <p className="text-sm text-textSecondary text-center mb-2">
                 Выберите должность (пост) в схеме слева — откроются инструкции, статистика, почта и конструктор.
               </p>
-              <p className="text-xs text-textSecondary text-center mb-4">
+              <p className="text-xs text-textSecondary text-center">
                 Кликните по блоку «Исполнительный директор» или по заместителям — справа появится блок «Конструктор» с кнопками редактирования.
               </p>
-              <ProtectedAction action="edit" resource="org">
-                <Button variant="outline" className="w-full" onClick={() => handleAddPost(null)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Добавить корневую должность
-                </Button>
-              </ProtectedAction>
             </CardContent>
           </Card>
         )}

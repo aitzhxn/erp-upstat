@@ -159,9 +159,12 @@ export default function InstructionDetail() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-textPrimary">{instruction.title}</h1>
-            <div className="flex items-center gap-2 mt-2">
+            <div className="flex items-center gap-3 mt-2 flex-wrap">
               {getStatusBadge(instruction.status)}
               <span className="text-sm text-textSecondary">Version {instruction.version}</span>
+              <span className="text-sm text-textSecondary border-l border-border pl-3">
+                Должность: <span className="font-medium text-textPrimary">{instruction.postTitle || instruction.postId}</span>
+              </span>
             </div>
           </div>
           <ProtectedAction action="edit" resource="instructions">

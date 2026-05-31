@@ -18,6 +18,7 @@ export interface Post {
   code?: string;
   cardColor?: string;  // optional: default, blue, green, amber, violet
   cardNotes?: string;  // optional text on org chart card
+  createdBy?: string;  // user ID who created the post
 }
 
 /** Кто занимает пост (для ответа API). Если null — вакансия. */

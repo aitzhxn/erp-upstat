@@ -140,7 +140,7 @@ export default function InstructionsList() {
                   >
                     <TableCell className="font-mono text-xs">{instruction.id}</TableCell>
                     <TableCell className="font-medium text-textPrimary">{instruction.title}</TableCell>
-                    <TableCell>{instruction.postId}</TableCell>
+                    <TableCell>{instruction.postTitle || instruction.postId}</TableCell>
                     <TableCell>{getStatusBadge(instruction.status)}</TableCell>
                     <TableCell>{instruction.updatedAt}</TableCell>
                     <TableCell>v{instruction.version}</TableCell>

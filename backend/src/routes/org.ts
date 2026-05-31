@@ -25,6 +25,7 @@ import {
   getAllowListForUser,
   getAdminPostIdForUser,
   getAdminPostIds,
+  getPostCreator,
 } from '../db';
 
 const router = Router();
@@ -34,10 +35,16 @@ function postIdFromParams(params: { id?: string | string[] }): string {
   return typeof id === 'string' ? id : (id?.[0] ?? '');
 }
 
-/** Дерево постов: все посты с информацией о занятости. Department Head / Section Head видят только своё поддерево. */
+async function isUserSuperAdmin(user: any): Promise<boolean> {
+  if (!user?.id) return false;
+  const myPosts = await getPostsForUser(user.id);
+  return myPosts.some((p) => p.id === 'p1');
+}
+
+
+/** Дерево постов: все посты с информацией о занятости. Любой авторизованный пользователь видит полную оргструктуру. */
 router.get('/posts', authenticate, async (req: AuthRequest, res) => {
-  const allowed = await getAllowListForUser(req.user);
-  res.json(await getPostsWithHolders(allowed));
+  res.json(await getPostsWithHolders(null));
 });
 
 /** Список всех должностей для выбора получателя сообщения. Любой авторизованный пользователь может писать любому. */
@@ -154,6 +161,18 @@ router.post('/posts', authenticate, requireRole('Admin', 'Department Head'), asy
   if (!title || !title.trim()) {
     return res.status(400).json({ error: 'Title is required' });
   }
+  
+  const isSuper = await isUserSuperAdmin(req.user);
+  if (!isSuper) {
+    const allowed = await getAllowListForUser(req.user);
+    if (parentPostId == null && req.user?.role !== 'Admin') {
+      return res.status(403).json({ error: 'Access denied: only users at the very top can create a root post' });
+    }
+    if (allowed != null && parentPostId != null && !allowed.includes(parentPostId)) {
+      return res.status(403).json({ error: 'Access denied: parent post is not in your hierarchy' });
+    }
+  }
+
   const id = `p${Date.now()}`;
   const posts = await getPostsWithHolders();
   const parentLevel = parentPostId ? (posts.find(p => p.id === parentPostId)?.level ?? 0) + 1 : 0;
@@ -184,6 +203,27 @@ router.put('/posts/:id', authenticate, requireRole('Admin', 'Department Head'), 
   const post = await getPostById(id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
   const body = req.body as Partial<PostWithHolder>;
+  
+  const isSuper = await isUserSuperAdmin(req.user);
+  if (!isSuper) {
+    if (post.parentPostId === null) {
+      const creatorId = await getPostCreator(id);
+      if (creatorId && creatorId !== req.user?.id) {
+        return res.status(403).json({ error: 'Доступ запрещен: корневую должность может менять только тот, кто её создавал!' });
+      }
+    }
+
+    const allowed = await getAllowListForUser(req.user);
+    if (allowed != null && !allowed.includes(id)) {
+      return res.status(403).json({ error: 'Access denied: this post is not in your hierarchy' });
+    }
+    if (allowed != null && body.parentPostId === null) {
+      return res.status(403).json({ error: 'Access denied: only users at the very top can make a post a root post' });
+    }
+    if (allowed != null && body.parentPostId !== undefined && body.parentPostId !== null && !allowed.includes(body.parentPostId)) {
+      return res.status(403).json({ error: 'Access denied: target parent post is not in your hierarchy' });
+    }
+  }
   const updates: Record<string, any> = {};
   if (body.title !== undefined) updates.title = sanitizeString(body.title);
   if (body.description !== undefined) updates.description = body.description;
@@ -216,6 +256,21 @@ router.put('/posts/:id', authenticate, requireRole('Admin', 'Department Head'), 
 /** Удалить должность (?cascade=true — вместе с дочерними). */
 router.delete('/posts/:id', authenticate, requireRole('Admin', 'Department Head'), async (req: AuthRequest, res) => {
   const id = postIdFromParams(req.params);
+  const post = await getPostById(id);
+  if (!post) return res.status(404).json({ error: 'Post not found' });
+  const isSuper = await isUserSuperAdmin(req.user);
+  if (!isSuper) {
+    if (post.parentPostId === null) {
+      const creatorId = await getPostCreator(id);
+      if (creatorId && creatorId !== req.user?.id) {
+        return res.status(403).json({ error: 'Доступ запрещен: корневую должность может менять только тот, кто её создавал!' });
+      }
+    }
+    const allowed = await getAllowListForUser(req.user);
+    if (allowed != null && !allowed.includes(id)) {
+      return res.status(403).json({ error: 'Access denied: this post is not in your hierarchy' });
+    }
+  }
   const cascade = (req.query.cascade as string) === 'true';
   if (!cascade && await postHasChildren(id)) {
     return res.status(400).json({ error: 'Post has children; use ?cascade=true to delete with children' });
@@ -233,8 +288,7 @@ router.delete('/posts/:id', authenticate, requireRole('Admin', 'Department Head'
 
 /** Устаревшие эндпоинты (employees/departments) — оставлены для совместимости. */
 router.get('/employees', authenticate, async (req: AuthRequest, res) => {
-  const allowed = await getAllowListForUser(req.user);
-  const posts = await getPostsWithHolders(allowed);
+  const posts = await getPostsWithHolders(null);
   const employees = posts
     .filter(p => p.currentHolder != null)
     .map(p => ({
@@ -252,16 +306,28 @@ router.get('/departments', authenticate, async (req, res) => {
 });
 
 router.get('/hierarchy', authenticate, async (req: AuthRequest, res) => {
-  const allowed = await getAllowListForUser(req.user);
-  res.json({ posts: await getPostsWithHolders(allowed) });
+  res.json({ posts: await getPostsWithHolders(null) });
 });
 
 /** Назначить пользователя на пост. Снимает с предыдущей должности. */
 router.post('/posts/:id/assign', authenticate, requireRole('Admin', 'Department Head'), async (req: AuthRequest, res) => {
   const id = postIdFromParams(req.params);
+  const isSuper = await isUserSuperAdmin(req.user);
+  if (!isSuper) {
+    const allowed = await getAllowListForUser(req.user);
+    if (allowed != null && !allowed.includes(id)) {
+      return res.status(403).json({ error: 'Access denied: this post is not in your hierarchy' });
+    }
+  }
   const { userId, name, email } = req.body;
   const post = await getPostById(id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
+  if (!isSuper && post.parentPostId === null) {
+    const creatorId = await getPostCreator(id);
+    if (creatorId && creatorId !== req.user?.id) {
+      return res.status(403).json({ error: 'Доступ запрещен: корневую должность может менять только тот, кто её создавал!' });
+    }
+  }
   if (userId) {
     await dbAssignUserToPost(id, userId);
     await appendAuditLog({
@@ -291,9 +357,22 @@ router.post('/posts/:id/assign', authenticate, requireRole('Admin', 'Department 
 /** Назначить сотрудника на должность (то же, что assign). */
 router.post('/posts/:id/assign-user', authenticate, requireRole('Admin', 'Department Head'), async (req: AuthRequest, res) => {
   const id = postIdFromParams(req.params);
+  const isSuper = await isUserSuperAdmin(req.user);
+  if (!isSuper) {
+    const allowed = await getAllowListForUser(req.user);
+    if (allowed != null && !allowed.includes(id)) {
+      return res.status(403).json({ error: 'Access denied: this post is not in your hierarchy' });
+    }
+  }
   const { userId, name, email } = req.body;
   const post = await getPostById(id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
+  if (!isSuper && post.parentPostId === null) {
+    const creatorId = await getPostCreator(id);
+    if (creatorId && creatorId !== req.user?.id) {
+      return res.status(403).json({ error: 'Доступ запрещен: корневую должность может менять только тот, кто её создавал!' });
+    }
+  }
   if (userId) {
     await dbAssignUserToPost(id, userId);
     await appendAuditLog({
@@ -323,8 +402,21 @@ router.post('/posts/:id/assign-user', authenticate, requireRole('Admin', 'Depart
 /** Снять сотрудника с должности (сделать вакансией). */
 router.post('/posts/:id/vacate', authenticate, requireRole('Admin', 'Department Head'), async (req: AuthRequest, res) => {
   const id = postIdFromParams(req.params);
+  const isSuper = await isUserSuperAdmin(req.user);
+  if (!isSuper) {
+    const allowed = await getAllowListForUser(req.user);
+    if (allowed != null && !allowed.includes(id)) {
+      return res.status(403).json({ error: 'Access denied: this post is not in your hierarchy' });
+    }
+  }
   const post = await getPostById(id);
   if (!post) return res.status(404).json({ error: 'Post not found' });
+  if (!isSuper && post.parentPostId === null) {
+    const creatorId = await getPostCreator(id);
+    if (creatorId && creatorId !== req.user?.id) {
+      return res.status(403).json({ error: 'Доступ запрещен: корневую должность может менять только тот, кто её создавал!' });
+    }
+  }
   await dbVacatePost(id);
   await appendAuditLog({
     entityType: 'post',
