@@ -18,6 +18,9 @@ import {
   hasUserAcknowledged,
   getInstructionAcknowledgements,
   getPostsForUser,
+  getInstructionComments,
+  createInstructionComment,
+  getUserById,
 } from '../db';
 
 const router = Router();
@@ -208,6 +211,53 @@ router.get('/:id/acknowledgements', authenticate, requireRole('Admin', 'Departme
   
   const list = await getInstructionAcknowledgements(id);
   res.json(list);
+});
+
+/** Get comments for an instruction. Any authenticated user. */
+router.get('/:id/comments', authenticate, async (req: AuthRequest, res) => {
+  const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
+  const instruction = await getInstructionById(id);
+  if (!instruction) return res.status(404).json({ error: 'Instruction not found' });
+
+  const allowed = await getAllowListForUser(req.user);
+  if (allowed != null && !allowed.includes(instruction.postId)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  const list = await getInstructionComments(id);
+  res.json(list);
+});
+
+/** Add a comment to an instruction. Any authenticated user. */
+router.post('/:id/comments', authenticate, async (req: AuthRequest, res) => {
+  const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
+  const instruction = await getInstructionById(id);
+  if (!instruction) return res.status(404).json({ error: 'Instruction not found' });
+
+  const allowed = await getAllowListForUser(req.user);
+  if (allowed != null && !allowed.includes(instruction.postId)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  const { text } = req.body;
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'Comment text is required' });
+  }
+
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
+
+  const dbUser = await getUserById(req.user.id);
+  if (!dbUser) return res.status(404).json({ error: 'User not found' });
+
+  const comment = await createInstructionComment(
+    id,
+    req.user.id,
+    dbUser.name,
+    dbUser.avatarUrl ?? null,
+    text.trim()
+  );
+
+  res.status(201).json(comment);
 });
 
 export default router;

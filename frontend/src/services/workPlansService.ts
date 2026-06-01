@@ -149,4 +149,30 @@ export const workPlansService = {
   markAllNotificationsAsRead: async (): Promise<void> => {
     await api.post('/work-plans/notifications/read-all');
   },
+
+  getComments: async (id: string): Promise<Array<{
+    id: string;
+    workPlanId: string;
+    userId: string;
+    userName: string;
+    userAvatarUrl: string | null;
+    text: string;
+    createdAt: string;
+  }>> => {
+    const response = await api.get(`/work-plans/${encodeURIComponent(id)}/comments`);
+    return response.data;
+  },
+
+  addComment: async (id: string, text: string): Promise<{
+    id: string;
+    workPlanId: string;
+    userId: string;
+    userName: string;
+    userAvatarUrl: string | null;
+    text: string;
+    createdAt: string;
+  }> => {
+    const response = await api.post(`/work-plans/${encodeURIComponent(id)}/comments`, { text });
+    return response.data;
+  },
 };

@@ -177,7 +177,9 @@ export default function WorkPlansList() {
   const [submitApproverId, setSubmitApproverId] = useState('');
   const [bossComment, setBossComment] = useState('');
 
-  const [posts, setPosts] = useState<PostWithHolder[]>([]);
+  const [allPosts, setAllPosts] = useState<PostWithHolder[]>([]);
+  const [myPosts, setMyPosts] = useState<PostWithHolder[]>([]);
+  const [departments, setDepartments] = useState<Array<{ id: string; name: string }>>([]);
   const [formTitle, setFormTitle] = useState('');
   const [formPostId, setFormPostId] = useState('');
   const [formMessageText, setFormMessageText] = useState('');
@@ -188,10 +190,41 @@ export default function WorkPlansList() {
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [createAncestors, setCreateAncestors] = useState<Array<{ id: string; title: string; label: string }>>([]);
   const [createApproverId, setCreateApproverId] = useState('');
+  const [ancestorsLoading, setAncestorsLoading] = useState(false);
   const [approverLabel, setApproverLabel] = useState<string | null>(null);
+  const [comments, setComments] = useState<any[]>([]);
 
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const [myPostIds, setMyPostIds] = useState<string[]>([]);
+
+  const getDescendantPostIds = useCallback((all: PostWithHolder[], startIds: string[]): string[] => {
+    const descendants: string[] = [];
+    const queue = [...startIds];
+    const visited = new Set<string>(startIds);
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      const children = all.filter(p => p.parentPostId === currentId);
+      for (const child of children) {
+        if (!visited.has(child.id)) {
+          visited.add(child.id);
+          descendants.push(child.id);
+          queue.push(child.id);
+        }
+      }
+    }
+    return descendants;
+  }, []);
+
+  const posts = useMemo(() => {
+    if (allPosts.length === 0) return [];
+    const isSuperAdmin = currentUser?.role === 'Admin' || myPosts.some(p => p.id === 'p1');
+    if (isSuperAdmin) return allPosts;
+
+    const myPostIds = myPosts.map(p => p.id);
+    const descendantIds = getDescendantPostIds(allPosts, myPostIds);
+    return allPosts.filter(p => myPostIds.includes(p.id) || descendantIds.includes(p.id));
+  }, [allPosts, myPosts, currentUser?.role, getDescendantPostIds]);
 
   const actorCtx = useMemo(() => ({
     currentUserId: currentUser?.id ?? null,
@@ -229,7 +262,11 @@ export default function WorkPlansList() {
   }, [refetch]);
 
   useEffect(() => {
-    if (showCreateModal || editingPlan) orgService.getMyPosts().then(setPosts).catch(() => setPosts([]));
+    if (showCreateModal || editingPlan) {
+      orgService.getPosts().then(setAllPosts).catch(() => setAllPosts([]));
+      orgService.getMyPosts().then(setMyPosts).catch(() => setMyPosts([]));
+      orgService.getDepartments().then(setDepartments).catch(() => setDepartments([]));
+    }
   }, [showCreateModal, !!editingPlan]);
 
   useEffect(() => {
@@ -243,16 +280,38 @@ export default function WorkPlansList() {
   }, [viewIdFromUrl, loading]);
 
   useEffect(() => {
-    if (viewPlanId) workPlanHook.load(viewPlanId);
-    else { workPlanHook.reset(); setBossComment(''); }
+    if (viewPlanId) {
+      workPlanHook.load(viewPlanId);
+      workPlansService.getComments(viewPlanId)
+        .then(setComments)
+        .catch(() => setComments([]));
+    } else {
+      workPlanHook.reset();
+      setBossComment('');
+      setComments([]);
+    }
   }, [viewPlanId]);
 
   useEffect(() => {
-    if (!showCreateModal || !formPostId) { setCreateAncestors([]); setCreateApproverId(''); return; }
+    if (!showCreateModal || !formPostId) {
+      setCreateAncestors([]);
+      setCreateApproverId('');
+      setAncestorsLoading(false);
+      return;
+    }
     let c = false;
+    setAncestorsLoading(true);
     orgService.getPostAncestors(formPostId).then((l) => {
-      if (!c) { setCreateAncestors(l); if (l.length > 0) setCreateApproverId(l[0].id); }
-    }).catch(() => { if (!c) setCreateAncestors([]); });
+      if (!c) {
+        setCreateAncestors(l);
+        if (l.length > 0) setCreateApproverId(l[0].id);
+        else setCreateApproverId('');
+      }
+    }).catch(() => {
+      if (!c) setCreateAncestors([]);
+    }).finally(() => {
+      if (!c) setAncestorsLoading(false);
+    });
     return () => { c = true; };
   }, [showCreateModal, formPostId]);
 
@@ -316,14 +375,34 @@ export default function WorkPlansList() {
     try {
       await workPlansService.submit(planId, approverPostId);
       setSubmitPlan(null); setSubmitAncestors([]); setSubmitApproverId('');
-      if (viewPlanId === planId) await workPlanHook.load(planId);
+      if (viewPlanId === planId) {
+        await workPlanHook.load(planId);
+        workPlansService.getComments(planId).then(setComments).catch(() => {});
+      }
       refetch();
     } catch (e) { console.error(e); }
   };
 
-  const handleLift = async () => { await workPlanHook.lift(bossComment.trim() || undefined); setBossComment(''); refetch(); };
-  const handleRefract = async () => { if (!bossComment.trim()) return; await workPlanHook.refract(bossComment.trim()); setBossComment(''); refetch(); };
-  const handleRestruc = async () => { if (!bossComment.trim()) return; await workPlanHook.restructure(bossComment.trim()); setBossComment(''); refetch(); };
+  const handleLift = async () => {
+    await workPlanHook.lift(bossComment.trim() || undefined);
+    setBossComment('');
+    if (viewPlanId) workPlansService.getComments(viewPlanId).then(setComments).catch(() => {});
+    refetch();
+  };
+  const handleRefract = async () => {
+    if (!bossComment.trim()) return;
+    await workPlanHook.refract(bossComment.trim());
+    setBossComment('');
+    if (viewPlanId) workPlansService.getComments(viewPlanId).then(setComments).catch(() => {});
+    refetch();
+  };
+  const handleRestruc = async () => {
+    if (!bossComment.trim()) return;
+    await workPlanHook.restructure(bossComment.trim());
+    setBossComment('');
+    if (viewPlanId) workPlansService.getComments(viewPlanId).then(setComments).catch(() => {});
+    refetch();
+  };
   const handleDelete = (id: string) => setDeletePlanId(id);
 
   const confirmDelete = async () => {
@@ -506,13 +585,15 @@ export default function WorkPlansList() {
                   </td>
                   <td className="px-4 py-3.5" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
-                      <button
-                        className="p-1.5 rounded hover:bg-primary/10 text-textSecondary hover:text-textPrimary transition-colors"
-                        onClick={() => openEdit(plan)}
-                        title="Редактировать"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
+                      {['draft', 'rejected', 'revision_requested'].includes(plan.workflowStatus) && (
+                        <button
+                          className="p-1.5 rounded hover:bg-primary/10 text-textSecondary hover:text-textPrimary transition-colors"
+                          onClick={() => openEdit(plan)}
+                          title="Редактировать"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         className="rounded p-1.5 text-textSecondary transition-colors hover:bg-primarySoft hover:text-primary"
                         onClick={() => handleDelete(plan.id)}
@@ -598,6 +679,16 @@ export default function WorkPlansList() {
             onRefract={handleRefract}
             onRestructure={handleRestruc}
             onDelete={() => { closeView(); handleDelete(workPlanHook.plan!.id); }}
+            comments={comments}
+            onAddComment={async (text) => {
+              if (!viewPlanId) return;
+              try {
+                const added = await workPlansService.addComment(viewPlanId, text);
+                setComments((prev) => [...prev, added]);
+              } catch (e) {
+                console.error(e);
+              }
+            }}
           />
         ) : (
           <p className="text-sm text-textSecondary py-8 text-center">Не удалось загрузить план</p>
@@ -634,8 +725,8 @@ export default function WorkPlansList() {
                 Отмена
               </button>
               <button
-                disabled={submitAncestors.length === 0 || !submitApproverId}
-                onClick={() => handleElevate(submitPlan.id, submitApproverId)}
+                disabled={submitAncestors.length > 0 && !submitApproverId}
+                onClick={() => handleElevate(submitPlan.id, submitApproverId || undefined)}
                 className="px-3.5 py-2 text-sm bg-primary text-white rounded hover:bg-primaryHover disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
               >
                 <Send className="w-3.5 h-3.5" />Отправить
@@ -652,25 +743,44 @@ export default function WorkPlansList() {
             <input type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)}
               className={INPUT_CLS} placeholder="Введите название плана" autoFocus />
           </Field>
-          <Field label="Должность *">
-            <select value={formPostId} onChange={(e) => setFormPostId(e.target.value)} className={INPUT_CLS}>
-              <option value="">— Выберите —</option>
-              {posts.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
-            </select>
-          </Field>
-          <Field label="Текст сообщения / ссылка">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Должность *">
+              <select value={formPostId} onChange={(e) => setFormPostId(e.target.value)} className={INPUT_CLS}>
+                <option value="">— Выберите —</option>
+                {posts.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+              </select>
+            </Field>
+            <Field label="Период">
+              <input type="text" value={formPeriod} onChange={(e) => setFormPeriod(e.target.value)} placeholder="Март 2026" className={INPUT_CLS} />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Отдел">
+              <select value={formDepartment} onChange={(e) => setFormDepartment(e.target.value)} className={INPUT_CLS}>
+                <option value="">— Выберите отдел —</option>
+                {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Срок">
+              <input type="date" value={formDueDate} onChange={(e) => setFormDueDate(e.target.value)} className={INPUT_CLS} />
+            </Field>
+          </div>
+          <Field label="Текст сообщения / ссылка (Задачи списком)">
             <textarea value={formMessageText} onChange={(e) => setFormMessageText(e.target.value)}
-              className={`${INPUT_CLS} min-h-[72px] resize-none`} placeholder="Опишите задачу или вставьте ссылку на документ" />
+              className={`${INPUT_CLS} min-h-[96px] resize-none`} 
+              placeholder="Опишите задачи списком (например:&#10;1. Первая задача&#10;2. Вторая задача)&#10;или вставьте ссылку на документ" />
           </Field>
           <Field label="Кому направить *">
-            {createAncestors.length > 0 ? (
+            {!formPostId ? (
+              <p className="text-sm text-textSecondary italic py-2">Сначала выберите должность</p>
+            ) : ancestorsLoading ? (
+              <p className="text-sm text-textSecondary italic py-2">Загрузка…</p>
+            ) : createAncestors.length > 0 ? (
               <select value={createApproverId} onChange={(e) => setCreateApproverId(e.target.value)} className={INPUT_CLS}>
                 {createAncestors.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
               </select>
             ) : (
-              <p className="text-sm text-textSecondary italic py-2">
-                {formPostId ? 'Загрузка…' : 'Сначала выберите должность'}
-              </p>
+              <p className="text-sm text-textSecondary italic py-2">Не требуется (высшая должность)</p>
             )}
           </Field>
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
@@ -679,14 +789,22 @@ export default function WorkPlansList() {
               Отмена
             </button>
             <button
-              disabled={!formTitle.trim() || !formPostId || createAncestors.length === 0 || !createApproverId || formSubmitting}
+              disabled={!formTitle.trim() || !formPostId || ancestorsLoading || (createAncestors.length > 0 && !createApproverId) || formSubmitting}
               className="px-3.5 py-2 text-sm bg-primary text-white rounded hover:bg-primaryHover disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
               onClick={async () => {
-                if (!formTitle.trim() || !formPostId || !createApproverId) return;
+                if (!formTitle.trim() || !formPostId || (createAncestors.length > 0 && !createApproverId)) return;
                 setFormSubmitting(true);
                 try {
-                  const created = await workPlansService.create({ title: formTitle.trim(), postId: formPostId, messageText: formMessageText.trim() || null });
-                  await workPlansService.submit(created.id, createApproverId);
+                  const created = await workPlansService.create({
+                    title: formTitle.trim(),
+                    postId: formPostId,
+                    period: formPeriod.trim() || null,
+                    department: formDepartment.trim() || null,
+                    status: formStatus,
+                    dueDate: formDueDate.trim() || null,
+                    messageText: formMessageText.trim() || null
+                  });
+                  await workPlansService.submit(created.id, createApproverId || undefined);
                   setShowCreateModal(false); refetch();
                 } finally { setFormSubmitting(false); }
               }}
@@ -708,14 +826,17 @@ export default function WorkPlansList() {
             status={formStatus} setStatus={setFormStatus}
             dueDate={formDueDate} setDueDate={setFormDueDate}
             period={formPeriod} setPeriod={setFormPeriod}
-            posts={posts} approverLabel={approverLabel} submitting={formSubmitting}
+            posts={posts} approverLabel={approverLabel} departments={departments} submitting={formSubmitting}
             onSave={async () => {
               if (!formTitle.trim() || !formPostId) return;
               setFormSubmitting(true);
               try {
                 await workPlansService.update(editingPlan.id, { title: formTitle.trim(), postId: formPostId, department: formDepartment.trim() || null, status: formStatus, dueDate: formDueDate.trim() || null, period: formPeriod.trim() || null, messageText: formMessageText.trim() || null });
-                setEditingPlan(await workPlansService.getById(editingPlan.id));
+                setEditingPlan(null);
                 refetch();
+              } catch (e: any) {
+                const msg = e.response?.data?.error || 'Не удалось сохранить изменения';
+                alert(msg);
               } finally { setFormSubmitting(false); }
             }}
             onCancel={() => setEditingPlan(null)}
@@ -762,6 +883,7 @@ function WorkPlanDetail({
   plan, machineState, permissions, actionLoading, error,
   bossComment, setBossComment,
   onEdit, onSubmitClick, onLift, onRefract, onRestructure, onDelete,
+  comments, onAddComment,
 }: {
   plan: WorkPlanWithTasks;
   machineState: WorkPlanMachineState;
@@ -776,6 +898,8 @@ function WorkPlanDetail({
   onRefract: () => void;
   onRestructure: () => void;
   onDelete: () => void;
+  comments: any[];
+  onAddComment: (text: string) => Promise<void>;
 }) {
   const commentTrim = bossComment.trim();
   const planEx = plan as WorkPlanWithTasks & { messageText?: string | null; approvalComment?: string | null };
@@ -868,6 +992,73 @@ function WorkPlanDetail({
         </div>
       )}
 
+      {/* Discussion & Comments */}
+      <div className="border border-border rounded overflow-hidden">
+        <div className="px-3 py-2 bg-background border-b border-border text-xs font-semibold text-textSecondary uppercase tracking-wide flex items-center gap-1.5">
+          <MessageSquare className="w-3.5 h-3.5" /> Обсуждение и история ({comments.length})
+        </div>
+        <div className="p-3 bg-surface space-y-3 max-h-[220px] overflow-y-auto min-h-[60px]">
+          {comments.length > 0 ? (
+            comments.map((comm) => {
+              const isSystem = comm.text.startsWith('⚙️');
+              return (
+                <div key={comm.id} className={`flex items-start gap-2.5 text-sm ${isSystem ? 'opacity-85 italic bg-background/50 p-2 rounded border border-border/40' : ''}`}>
+                  {!isSystem && (
+                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-semibold text-primary flex-shrink-0 uppercase">
+                      {comm.userName.slice(0, 2)}
+                    </div>
+                  )}
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className={`font-semibold text-xs ${isSystem ? 'text-textSecondary font-mono' : 'text-textPrimary'}`}>
+                        {isSystem ? 'Системное событие' : comm.userName}
+                      </span>
+                      <span className="text-[10px] text-textSecondary">{formatDate(comm.createdAt)} {comm.createdAt.slice(11, 16)}</span>
+                    </div>
+                    <p className={`text-xs ${isSystem ? 'text-textSecondary' : 'text-textPrimary'} whitespace-pre-wrap`}>
+                      {comm.text}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="text-xs text-textSecondary italic text-center py-4">Нет комментариев. Задайте вопрос или оставьте комментарий.</p>
+          )}
+        </div>
+        <div className="p-3 bg-background border-t border-border flex items-center gap-2">
+          <input
+            type="text"
+            id="comment-input-field"
+            placeholder="Задать вопрос или прокомментировать..."
+            className="flex-1 px-3 py-1.5 text-xs border border-border rounded bg-surface placeholder:text-textSecondary text-textPrimary focus:outline-none focus:ring-1 focus:ring-primary"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const target = e.currentTarget;
+                const val = target.value.trim();
+                if (val) {
+                  onAddComment(val);
+                  target.value = '';
+                }
+              }
+            }}
+          />
+          <button
+            onClick={() => {
+              const input = document.getElementById('comment-input-field') as HTMLInputElement;
+              const val = input?.value?.trim();
+              if (val) {
+                onAddComment(val);
+                input.value = '';
+              }
+            }}
+            className="px-3 py-1.5 text-xs bg-primary text-white font-medium rounded hover:bg-primaryHover transition-colors"
+          >
+            Отправить
+          </button>
+        </div>
+      </div>
+
       {/* Action bar */}
       <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
         {permissions.canEdit && (
@@ -936,7 +1127,7 @@ function WorkPlanDetail({
 function WorkPlanForm({
   title, setTitle, postId, setPostId, messageText, setMessageText,
   department, setDepartment, status, setStatus, dueDate, setDueDate,
-  period, setPeriod, posts, approverLabel,
+  period, setPeriod, posts, approverLabel, departments,
   submitting, onSave, onCancel,
 }: {
   title: string; setTitle: (v: string) => void;
@@ -947,6 +1138,7 @@ function WorkPlanForm({
   dueDate: string; setDueDate: (v: string) => void;
   period: string; setPeriod: (v: string) => void;
   posts: PostWithHolder[]; approverLabel: string | null;
+  departments: Array<{ id: string; name: string }>;
   submitting: boolean; onSave: () => Promise<void>; onCancel: () => void;
 }) {
 
@@ -975,7 +1167,10 @@ function WorkPlanForm({
       </Field>
       <div className="grid grid-cols-3 gap-3">
         <Field label="Отдел">
-          <input type="text" value={department} onChange={(e) => setDepartment(e.target.value)} className={INPUT_CLS} />
+          <select value={department} onChange={(e) => setDepartment(e.target.value)} className={INPUT_CLS}>
+            <option value="">— Выберите отдел —</option>
+            {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
+          </select>
         </Field>
         <Field label="Статус">
           <select value={status} onChange={(e) => setStatus(e.target.value)} className={INPUT_CLS}>

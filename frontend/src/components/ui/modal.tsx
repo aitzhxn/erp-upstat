@@ -42,13 +42,13 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
     >
       <div 
         className={cn(
-          "bg-surface rounded-lg shadow-2xl ring-1 ring-black/10 w-full mx-4 animate-in fade-in zoom-in-95 duration-200",
+          "bg-surface rounded-lg shadow-2xl ring-1 ring-black/10 w-full mx-4 animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]",
           sizes[size]
         )}
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <div className="flex items-center justify-between p-6 border-b border-border">
+          <div className="flex items-center justify-between p-6 border-b border-border flex-shrink-0">
             <h2 className="text-lg font-semibold text-textPrimary">{title}</h2>
             <button
               onClick={onClose}
@@ -58,7 +58,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
             </button>
           </div>
         )}
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1">
           {children}
         </div>
       </div>

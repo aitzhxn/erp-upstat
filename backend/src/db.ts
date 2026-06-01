@@ -80,6 +80,34 @@ export async function initDb(): Promise<void> {
       UNIQUE(instruction_id, user_id)
     )
   `);
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS instruction_comments (
+      id              TEXT PRIMARY KEY,
+      instruction_id  TEXT NOT NULL REFERENCES instructions(id) ON DELETE CASCADE,
+      user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_name       TEXT NOT NULL,
+      user_avatar_url TEXT,
+      text            TEXT NOT NULL,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await execRaw(`
+    CREATE INDEX IF NOT EXISTS idx_comments_instruction ON instruction_comments(instruction_id)
+  `);
+  await execRaw(`
+    CREATE TABLE IF NOT EXISTS work_plan_comments (
+      id              TEXT PRIMARY KEY,
+      work_plan_id    TEXT NOT NULL REFERENCES work_plans(id) ON DELETE CASCADE,
+      user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_name       TEXT NOT NULL,
+      user_avatar_url TEXT,
+      text            TEXT NOT NULL,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await execRaw(`
+    CREATE INDEX IF NOT EXISTS idx_comments_work_plan ON work_plan_comments(work_plan_id)
+  `);
   await seedMetricDefinitionsIfEmpty();
   await seedIfEmpty();
   await ensureSecondAdminPost();
@@ -1075,6 +1103,82 @@ export async function getInstructionAcknowledgements(instructionId: string): Pro
     userEmail: r.userEmail,
     acknowledgedAt: r.acknowledgedAt || '',
   }));
+}
+
+/** Get list of comments for an instruction. */
+export async function getInstructionComments(instructionId: string): Promise<Array<{ id: string; instructionId: string; userId: string; userName: string; userAvatarUrl: string | null; text: string; createdAt: string }>> {
+  const rows = await all(`
+    SELECT id, instruction_id AS "instructionId", user_id AS "userId", user_name AS "userName", user_avatar_url AS "userAvatarUrl", text, created_at AS "createdAt"
+    FROM instruction_comments
+    WHERE instruction_id = ?
+    ORDER BY created_at ASC
+  `, [instructionId]) as any[];
+  return rows.map(r => ({
+    id: r.id,
+    instructionId: r.instructionId,
+    userId: r.userId,
+    userName: r.userName,
+    userAvatarUrl: r.userAvatarUrl || null,
+    text: r.text,
+    createdAt: r.createdAt || new Date().toISOString(),
+  }));
+}
+
+/** Create a comment for an instruction. */
+export async function createInstructionComment(instructionId: string, userId: string, userName: string, userAvatarUrl: string | null, text: string): Promise<{ id: string; instructionId: string; userId: string; userName: string; userAvatarUrl: string | null; text: string; createdAt: string }> {
+  const id = `comm${Date.now()}`;
+  const now = new Date().toISOString();
+  await run(`
+    INSERT INTO instruction_comments (id, instruction_id, user_id, user_name, user_avatar_url, text, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, [id, instructionId, userId, userName, userAvatarUrl ?? null, text, now]);
+  return {
+    id,
+    instructionId,
+    userId,
+    userName,
+    userAvatarUrl,
+    text,
+    createdAt: now,
+  };
+}
+
+/** Get list of comments for a work plan. */
+export async function getWorkPlanComments(workPlanId: string): Promise<Array<{ id: string; workPlanId: string; userId: string; userName: string; userAvatarUrl: string | null; text: string; createdAt: string }>> {
+  const rows = await all(`
+    SELECT id, work_plan_id AS "workPlanId", user_id AS "userId", user_name AS "userName", user_avatar_url AS "userAvatarUrl", text, created_at AS "createdAt"
+    FROM work_plan_comments
+    WHERE work_plan_id = ?
+    ORDER BY created_at ASC
+  `, [workPlanId]) as any[];
+  return rows.map(r => ({
+    id: r.id,
+    workPlanId: r.workPlanId,
+    userId: r.userId,
+    userName: r.userName,
+    userAvatarUrl: r.userAvatarUrl || null,
+    text: r.text,
+    createdAt: r.createdAt || new Date().toISOString(),
+  }));
+}
+
+/** Create a comment for a work plan. */
+export async function createWorkPlanComment(workPlanId: string, userId: string, userName: string, userAvatarUrl: string | null, text: string): Promise<{ id: string; workPlanId: string; userId: string; userName: string; userAvatarUrl: string | null; text: string; createdAt: string }> {
+  const id = `comm${Date.now()}`;
+  const now = new Date().toISOString();
+  await run(`
+    INSERT INTO work_plan_comments (id, work_plan_id, user_id, user_name, user_avatar_url, text, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `, [id, workPlanId, userId, userName, userAvatarUrl ?? null, text, now]);
+  return {
+    id,
+    workPlanId,
+    userId,
+    userName,
+    userAvatarUrl,
+    text,
+    createdAt: now,
+  };
 }
 
 /** Instruction steps by instruction_id. */
@@ -2341,9 +2445,9 @@ function highestRole(roles: (string | null)[]): string {
 }
 
 /** User by id for /me. Role = highest among all posts the user holds (user_posts), so Admin stays Admin when assigned to other departments. */
-export async function getUserById(userId: string): Promise<{ id: string; email: string; name: string; organizationId: string; postId: string | null; role: string; isVerified: boolean } | null> {
+export async function getUserById(userId: string): Promise<{ id: string; email: string; name: string; organizationId: string; postId: string | null; role: string; isVerified: boolean; avatarUrl?: string | null } | null> {
   const row = await get(`
-    SELECT u.id, u.email, u.name, u.organization_id, u.post_id, u.is_verified
+    SELECT u.id, u.email, u.name, u.organization_id, u.post_id, u.is_verified, u.avatar_url
     FROM users u WHERE u.id = ?
   `, [userId]) as any;
   if (!row) return null;
@@ -2360,6 +2464,7 @@ export async function getUserById(userId: string): Promise<{ id: string; email: 
     postId: row.post_id,
     role,
     isVerified: !!row.is_verified,
+    avatarUrl: row.avatar_url || null,
   };
 }
 

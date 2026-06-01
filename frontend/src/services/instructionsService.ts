@@ -14,6 +14,16 @@ export interface InstructionListItem {
   updatedAt: string;
 }
 
+export interface InstructionComment {
+  id: string;
+  instructionId: string;
+  userId: string;
+  userName: string;
+  userAvatarUrl: string | null;
+  text: string;
+  createdAt: string;
+}
+
 export interface CreateInstructionData {
   title: string;
   postId: string;
@@ -77,5 +87,13 @@ export const instructionsService = {
   },
   delete: async (id: string): Promise<void> => {
     await api.delete(`/instructions/${id}`);
+  },
+  getComments: async (id: string): Promise<InstructionComment[]> => {
+    const response = await api.get<InstructionComment[]>(`/instructions/${id}/comments`);
+    return response.data;
+  },
+  addComment: async (id: string, text: string): Promise<InstructionComment> => {
+    const response = await api.post<InstructionComment>(`/instructions/${id}/comments`, { text });
+    return response.data;
   },
 };

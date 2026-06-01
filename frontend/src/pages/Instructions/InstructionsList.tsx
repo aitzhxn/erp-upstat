@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Plus } from 'lucide-react';
+import { useSelector } from 'react-redux';
+import type { RootState } from '@/store/store';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -26,6 +28,21 @@ export default function InstructionsList() {
   const [createTitle, setCreateTitle] = useState('');
   const [createPostId, setCreatePostId] = useState('');
   const [createSubmitting, setCreateSubmitting] = useState(false);
+
+  const currentUser = useSelector((state: RootState) => state.auth.user);
+  
+  const isSuperAdmin = currentUser?.role === 'Admin' || currentUser?.postId === 'p1';
+  
+  // Tab state: 'received' | 'issued' | 'all'
+  const [activeTab, setActiveTab] = useState<'received' | 'issued' | 'all'>(
+    isSuperAdmin ? 'all' : 'received'
+  );
+
+  const showTabs = currentUser?.role === 'Admin' || currentUser?.role === 'Department Head';
+
+  const receivedCount = instructions.filter(i => i.postId === currentUser?.postId).length;
+  const issuedCount = instructions.filter(i => i.ownerPostId === currentUser?.postId && i.postId !== currentUser?.postId).length;
+  const allCount = instructions.length;
 
   const refetch = () => {
     instructionsService.getList(postIdFilter).then(setInstructions).catch(() => setInstructions([]));
@@ -99,7 +116,17 @@ export default function InstructionsList() {
   const filteredInstructions = instructions.filter((instruction) => {
     const matchesSearch = instruction.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || instruction.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    
+    let matchesTab = true;
+    if (showTabs) {
+      if (activeTab === 'received') {
+        matchesTab = instruction.postId === currentUser?.postId;
+      } else if (activeTab === 'issued') {
+        matchesTab = instruction.ownerPostId === currentUser?.postId && instruction.postId !== currentUser?.postId;
+      }
+    }
+    
+    return matchesSearch && matchesStatus && matchesTab;
   });
 
   return (
@@ -118,6 +145,58 @@ export default function InstructionsList() {
           </Button>
         </ProtectedAction>
       </div>
+
+      {showTabs && (
+        <div className="flex border-b border-border/60 gap-2 mb-2">
+          {isSuperAdmin && (
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all duration-200 ${
+                activeTab === 'all'
+                  ? 'border-primary text-primary bg-primary/5'
+                  : 'border-transparent text-textSecondary hover:text-textPrimary hover:bg-surface-hover/20'
+              }`}
+            >
+              <span>Все регламенты</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${
+                activeTab === 'all' ? 'bg-primary/20 text-primary' : 'bg-surface border border-border text-textSecondary'
+              }`}>
+                {allCount}
+              </span>
+            </button>
+          )}
+          <button
+            onClick={() => setActiveTab('received')}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all duration-200 ${
+              activeTab === 'received'
+                ? 'border-primary text-primary bg-primary/5'
+                : 'border-transparent text-textSecondary hover:text-textPrimary hover:bg-surface-hover/20'
+            }`}
+          >
+            <span>Полученные регламенты</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${
+              activeTab === 'received' ? 'bg-primary/20 text-primary' : 'bg-surface border border-border text-textSecondary'
+            }`}>
+              {receivedCount}
+            </span>
+          </button>
+          <button
+            onClick={() => setActiveTab('issued')}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all duration-200 ${
+              activeTab === 'issued'
+                ? 'border-primary text-primary bg-primary/5'
+                : 'border-transparent text-textSecondary hover:text-textPrimary hover:bg-surface-hover/20'
+            }`}
+          >
+            <span>Выданные мной</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${
+              activeTab === 'issued' ? 'bg-primary/20 text-primary' : 'bg-surface border border-border text-textSecondary'
+            }`}>
+              {issuedCount}
+            </span>
+          </button>
+        </div>
+      )}
 
       <Card>
         <CardContent className="p-4">

@@ -5,9 +5,9 @@ import type { RootState } from '@/store/store';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Trash2, Edit2, Save, X, FileText, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Trash2, Edit2, Save, X, FileText, CheckCircle, MessageSquare, Send } from 'lucide-react';
 import ProtectedAction from '@/components/rbac/ProtectedAction';
-import { instructionsService, type InstructionListItem } from '@/services/instructionsService';
+import { instructionsService, type InstructionListItem, type InstructionComment } from '@/services/instructionsService';
 
 export default function InstructionDetail() {
   const { id } = useParams();
@@ -28,7 +28,18 @@ export default function InstructionDetail() {
   const [acknowledgements, setAcknowledgements] = useState<Array<{ userId: string; userName: string; userEmail: string; acknowledgedAt: string }>>([]);
   const [acknowledging, setAcknowledging] = useState(false);
 
+  // Comment states
+  const [comments, setComments] = useState<InstructionComment[]>([]);
+  const [newCommentText, setNewCommentText] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+
+  const [publishing, setPublishing] = useState(false);
+
   const currentUser = useSelector((state: RootState) => state.auth.user);
+
+  const isSuperAdmin = currentUser?.role === 'Admin' || currentUser?.postId === 'p1';
+  const isOwner = !!(currentUser && instruction && currentUser.postId === instruction.ownerPostId);
+  const canEditInstruction = isSuperAdmin || isOwner;
 
   useEffect(() => {
     if (!id) {
@@ -52,10 +63,51 @@ export default function InstructionDetail() {
             .then(setAcknowledgements)
             .catch(() => setAcknowledgements([]));
         }
+
+        // Fetch comments
+        instructionsService.getComments(id)
+          .then(setComments)
+          .catch(() => setComments([]));
       })
       .catch(() => setError('Не удалось загрузить инструкцию'))
       .finally(() => setLoading(false));
   }, [id, currentUser]);
+
+  const getInitials = (name: string) => {
+    if (!name?.trim()) return '??';
+    return name.trim().split(/\s+/).map(n => n[0]).slice(0, 2).join('').toUpperCase();
+  };
+
+  const handleAddComment = async () => {
+    if (!id || !newCommentText.trim()) return;
+    setSubmittingComment(true);
+    try {
+      const added = await instructionsService.addComment(id, newCommentText.trim());
+      setComments(prev => [...prev, added]);
+      setNewCommentText('');
+    } catch (err) {
+      alert('Не удалось отправить комментарий');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!id || !instruction) return;
+    if (!window.confirm(`Вы уверены, что хотите опубликовать регламент «${instruction.title}»?`)) return;
+    setPublishing(true);
+    try {
+      const updated = await instructionsService.update(id, {
+        status: 'active',
+        version: instruction.version + 1,
+      });
+      setInstruction(updated);
+    } catch (err) {
+      alert('Не удалось опубликовать регламент');
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -184,8 +236,19 @@ export default function InstructionDetail() {
             </div>
           </div>
           
-          {!isEditing && (
+          {!isEditing && canEditInstruction && (
             <div className="flex gap-2">
+              {instruction.status === 'draft' && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handlePublish}
+                  disabled={publishing}
+                >
+                  {publishing ? 'Публикация...' : 'Опубликовать регламент'}
+                </Button>
+              )}
+
               <ProtectedAction action="edit" resource="instructions">
                 <Button variant="outline" size="sm" onClick={handleStartEdit}>
                   <Edit2 className="w-4 h-4 mr-1.5" />
@@ -312,12 +375,14 @@ export default function InstructionDetail() {
                 <p className="text-xs text-textSecondary max-w-sm mx-auto mb-5 leading-normal">
                   Текст инструкции для данной должности пока не заполнен. Добавьте описание обязанностей и правил.
                 </p>
-                <ProtectedAction action="edit" resource="instructions">
-                  <Button variant="outline" size="sm" onClick={handleStartEdit}>
-                    <Edit2 className="w-4 h-4 mr-1.5" />
-                    Заполнить регламент
-                  </Button>
-                </ProtectedAction>
+                {canEditInstruction && (
+                  <ProtectedAction action="edit" resource="instructions">
+                    <Button variant="outline" size="sm" onClick={handleStartEdit}>
+                      <Edit2 className="w-4 h-4 mr-1.5" />
+                      Заполнить регламент
+                    </Button>
+                  </ProtectedAction>
+                )}
               </div>
             )}
           </CardContent>
@@ -325,7 +390,7 @@ export default function InstructionDetail() {
       )}
 
       {/* Acknowledgment widgets for targeted employees */}
-      {!isEditing && instruction?.status === 'active' && currentUser?.postId === instruction.postId && (
+      {!isEditing && (instruction?.status === 'active' || instruction?.status === 'draft') && currentUser?.postId === instruction.postId && (
         <div>
           {instruction.isAcknowledged ? (
             <div className="flex items-center gap-3.5 p-4 bg-success/10 border border-success/30 rounded-xl text-success shadow-sm">
@@ -407,6 +472,80 @@ export default function InstructionDetail() {
                 </p>
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Comments section */}
+      {!isEditing && (
+        <Card className="border border-border/80 shadow-md bg-surface overflow-hidden">
+          <CardHeader className="bg-surface/50 border-b border-border/40 py-4 px-6 flex flex-row items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10 text-primary">
+              <MessageSquare className="w-5 h-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-semibold text-textPrimary">Комментарии и обсуждение</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 bg-surface space-y-6">
+            {/* Comments List */}
+            {comments.length > 0 ? (
+              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                {comments.map((comm) => (
+                  <div key={comm.id} className="flex items-start gap-3 p-3 bg-surface-hover/20 border border-border/40 rounded-xl text-left">
+                    {comm.userAvatarUrl ? (
+                      <img src={comm.userAvatarUrl} className="w-8 h-8 rounded-full object-cover shrink-0" alt="" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                        {getInitials(comm.userName)}
+                      </div>
+                    )}
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="font-semibold text-sm text-textPrimary">{comm.userName}</span>
+                        <span className="text-xs text-textSecondary font-mono">
+                          {new Date(comm.createdAt).toLocaleString('ru-RU', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-sm text-textSecondary leading-relaxed whitespace-pre-wrap">{comm.text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 px-4 border border-dashed border-border rounded-xl">
+                <p className="text-sm text-textSecondary">
+                  Комментариев пока нет. Начните обсуждение первым!
+                </p>
+              </div>
+            )}
+
+            {/* Comment Form */}
+            <div className="flex gap-3 items-start border-t border-border/40 pt-4">
+              <div className="flex-1">
+                <textarea
+                  value={newCommentText}
+                  onChange={(e) => setNewCommentText(e.target.value)}
+                  placeholder="Напишите комментарий, вопрос или предложение по этому регламенту..."
+                  rows={3}
+                  className="w-full px-4 py-2.5 bg-surface border border-border rounded-lg text-sm text-textPrimary placeholder:text-textSecondary/60 focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none text-left"
+                />
+              </div>
+              <Button
+                onClick={handleAddComment}
+                disabled={submittingComment || !newCommentText.trim()}
+                className="px-4 py-2.5 h-auto shrink-0 flex items-center gap-1.5"
+              >
+                <Send className="w-4 h-4" />
+                Отправить
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}

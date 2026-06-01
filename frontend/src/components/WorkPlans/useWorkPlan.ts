@@ -62,6 +62,7 @@ function derivePermissions(plan: WorkPlanWithTasks | null, actor: WorkPlanActorC
     plan.approverPostId != null &&
     actor.myPostIds.includes(plan.approverPostId);
 
+  const isAdmin = actor.userRole === 'Admin';
   const isAdminOrHead =
     actor.userRole === 'Admin' ||
     actor.userRole === 'Department Head' ||
@@ -77,9 +78,9 @@ function derivePermissions(plan: WorkPlanWithTasks | null, actor: WorkPlanActorC
     canEdit:    isEditable && (isAuthor || isAdminOrHead),
     canSubmit:  isEditable && isAuthor,
     canDelete:  isAuthor || isAdminOrHead,
-    canApprove: isAwaitingDecision && (isApprover || isAdminOrHead),
-    canReject:  isAwaitingDecision && (isApprover || isAdminOrHead),
-    canRevise:  isAwaitingDecision && (isApprover || isAdminOrHead),
+    canApprove: isAwaitingDecision && (isApprover || (isAdmin && !isAuthor)),
+    canReject:  isAwaitingDecision && (isApprover || (isAdmin && !isAuthor)),
+    canRevise:  isAwaitingDecision && (isApprover || (isAdmin && !isAuthor)),
   };
 }
 

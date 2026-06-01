@@ -24,6 +24,9 @@ import {
   getWorkPlanNotifications,
   markWorkPlanNotificationAsRead,
   markAllWorkPlanNotificationsAsRead,
+  getWorkPlanComments,
+  createWorkPlanComment,
+  getUserById,
 } from '../db';
 
 const router = Router();
@@ -162,6 +165,19 @@ router.post('/:id/submit', authenticate, async (req: AuthRequest, res) => {
     }
   }
   await submitWorkPlan(id, approver);
+  try {
+    const dbUser = await getUserById(req.user!.id);
+    if (dbUser) {
+      let commentText = `⚙️ Отправил план на согласование.`;
+      if (approver) {
+        const apprPost = await getPostById(approver);
+        if (apprPost) commentText = `⚙️ Отправил план на согласование руководителю: ${apprPost.title}${apprPost.currentHolder ? ` — ${apprPost.currentHolder.name}` : ''}.`;
+      }
+      await createWorkPlanComment(id, req.user!.id, dbUser.name, dbUser.avatarUrl ?? null, commentText);
+    }
+  } catch (err) {
+    console.error('Failed to create submit comment:', err);
+  }
   const updated = await getWorkPlanById(id);
   res.json(updated!);
 });
@@ -182,6 +198,15 @@ router.post('/:id/approve', authenticate, async (req: AuthRequest, res) => {
     return res.status(403).json({ error: 'Approver is no longer valid for this work plan' });
   }
   await approveWorkPlan(id, typeof comment === 'string' ? comment : undefined);
+  try {
+    const dbUser = await getUserById(req.user!.id);
+    if (dbUser) {
+      const commentText = `⚙️ Согласовал план.${comment ? ` Комментарий: "${comment}"` : ''}`;
+      await createWorkPlanComment(id, req.user!.id, dbUser.name, dbUser.avatarUrl ?? null, commentText);
+    }
+  } catch (err) {
+    console.error('Failed to create approve comment:', err);
+  }
   const updated = await getWorkPlanById(id);
   res.json(updated!);
 });
@@ -204,6 +229,15 @@ router.post('/:id/reject', authenticate, async (req: AuthRequest, res) => {
     return res.status(403).json({ error: 'Approver is no longer valid for this work plan' });
   }
   await rejectWorkPlan(id, commentStr);
+  try {
+    const dbUser = await getUserById(req.user!.id);
+    if (dbUser) {
+      const commentText = `⚙️ Отклонил план. Причина: "${commentStr}"`;
+      await createWorkPlanComment(id, req.user!.id, dbUser.name, dbUser.avatarUrl ?? null, commentText);
+    }
+  } catch (err) {
+    console.error('Failed to create reject comment:', err);
+  }
   const updated = await getWorkPlanById(id);
   res.json(updated!);
 });
@@ -226,6 +260,15 @@ router.post('/:id/request-revision', authenticate, async (req: AuthRequest, res)
     return res.status(403).json({ error: 'Approver is no longer valid for this work plan' });
   }
   await requestRevisionWorkPlan(id, commentStr);
+  try {
+    const dbUser = await getUserById(req.user!.id);
+    if (dbUser) {
+      const commentText = `⚙️ Отправил план на доработку. Комментарий: "${commentStr}"`;
+      await createWorkPlanComment(id, req.user!.id, dbUser.name, dbUser.avatarUrl ?? null, commentText);
+    }
+  } catch (err) {
+    console.error('Failed to create request-revision comment:', err);
+  }
   const updated = await getWorkPlanById(id);
   res.json(updated!);
 });
@@ -329,6 +372,38 @@ router.post('/notifications/read-all', authenticate, async (req: AuthRequest, re
   if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
   await markAllWorkPlanNotificationsAsRead(req.user.id);
   res.json({ ok: true });
+});
+
+/** Get comments for a work plan. */
+router.get('/:id/comments', authenticate, async (req: AuthRequest, res) => {
+  const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
+  const plan = await getWorkPlanById(id);
+  if (!plan) return res.status(404).json({ error: 'Work plan not found' });
+  const allowed = await getAllowListForUser(req.user);
+  const myPostIds = req.user?.id ? (await getPostsForUser(req.user.id)).map(p => p.id) : [];
+  const canSee = allowed === null || allowed.includes(plan.postId) || (plan.approverPostId != null && myPostIds.includes(plan.approverPostId));
+  if (!canSee) return res.status(403).json({ error: 'No access' });
+  const list = await getWorkPlanComments(id);
+  res.json(list);
+});
+
+/** Create a comment for a work plan. */
+router.post('/:id/comments', authenticate, async (req: AuthRequest, res) => {
+  const id = typeof req.params.id === 'string' ? req.params.id : req.params.id?.[0] ?? '';
+  const plan = await getWorkPlanById(id);
+  if (!plan) return res.status(404).json({ error: 'Work plan not found' });
+  const allowed = await getAllowListForUser(req.user);
+  const myPostIds = req.user?.id ? (await getPostsForUser(req.user.id)).map(p => p.id) : [];
+  const canSee = allowed === null || allowed.includes(plan.postId) || (plan.approverPostId != null && myPostIds.includes(plan.approverPostId));
+  if (!canSee) return res.status(403).json({ error: 'No access' });
+  const { text } = req.body;
+  if (!text || !text.trim()) return res.status(400).json({ error: 'Comment text is required' });
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  const dbUser = await getUserById(userId);
+  if (!dbUser) return res.status(404).json({ error: 'User not found' });
+  const added = await createWorkPlanComment(id, userId, dbUser.name, dbUser.avatarUrl ?? null, text.trim());
+  res.status(201).json(added);
 });
 
 export default router;
