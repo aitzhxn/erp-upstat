@@ -192,6 +192,7 @@ DATABASE_URL=postgresql://erp:password@localhost:5432/erpupstat
 ## API Endpoints
 
 - `GET /api/health` - Health check
+- `POST /api/auth/signup` - Register (immediate access, no email verification)
 - `POST /api/auth/login` - Login (JWT)
 - `GET /api/auth/me` - Current user (validates token)
 - `GET /api/org/employees` - Get employees

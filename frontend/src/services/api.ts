@@ -26,10 +26,10 @@ function isAuthEndpoint(config: { url?: string; baseURL?: string }): boolean {
   const url = config.url ?? '';
   const base = config.baseURL ?? '';
   const path = url.startsWith('http') ? url : `${base.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
-  return path.includes('/auth/login');
+  return path.includes('/auth/login') || path.includes('/auth/signup');
 }
 
-// Add token to requests (key must match authService AUTH_TOKEN_KEY). Skip for login.
+// Add token to requests (key must match authService AUTH_TOKEN_KEY). Skip for login/signup.
 api.interceptors.request.use((config) => {
   if (isAuthEndpoint(config)) return config;
   const token = localStorage.getItem('auth_token');

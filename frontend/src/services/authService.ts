@@ -10,6 +10,12 @@ export interface LoginCredentials {
   password: string;
 }
 
+export interface SignupData {
+  name: string;
+  email: string;
+  password: string;
+}
+
 export async function login(credentials: LoginCredentials): Promise<{ user: User; token: string }> {
   const { email, password } = credentials;
   if (!email.trim() || !password) {
@@ -26,6 +32,33 @@ export async function login(credentials: LoginCredentials): Promise<{ user: User
     const msg = (err as { response?: { data?: { error?: string } }; message?: string })?.response?.data?.error
       ?? (err as Error)?.message
       ?? 'Ошибка входа';
+    throw new Error(msg);
+  }
+}
+
+export async function signup(data: SignupData): Promise<{ user: User; token: string }> {
+  const { name, email, password } = data;
+  if (!name.trim() || !email.trim() || !password) {
+    throw new Error('Заполните имя, email и пароль');
+  }
+  if (password.length < 6) {
+    throw new Error('Пароль не менее 6 символов');
+  }
+  try {
+    const { data: res } = await api.post<{ token: string; user: User }>('/auth/signup', {
+      name: name.trim(),
+      email: email.trim(),
+      password,
+    });
+    if (!res.token || !res.user) {
+      throw new Error('Invalid response from server');
+    }
+    resetUnauthorizedFlag();
+    return { user: res.user, token: res.token };
+  } catch (err: unknown) {
+    const msg = (err as { response?: { data?: { error?: string } }; message?: string })?.response?.data?.error
+      ?? (err as Error)?.message
+      ?? 'Ошибка регистрации';
     throw new Error(msg);
   }
 }

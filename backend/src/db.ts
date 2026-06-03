@@ -2387,6 +2387,39 @@ export async function appendAuditLog(data: { entityType: string; entityId: strin
   `, [id, data.entityType, data.entityId, data.action, data.userId, data.changes ?? null]);
 }
 
+/** Create user (signup). Account is active immediately (no email verification). */
+export async function createUser(data: {
+  email: string;
+  name: string;
+  passwordHash: string;
+  organizationId?: string;
+}): Promise<{ id: string; email: string; name: string; organizationId: string; postId: null; role: string }> {
+  const emailNorm = data.email.trim().toLowerCase();
+  const existing = await get('SELECT id FROM users WHERE LOWER(TRIM(email)) = ?', [emailNorm]);
+  if (existing) {
+    throw new Error('Email already registered');
+  }
+  const id = `u${Date.now()}`;
+  const orgId = data.organizationId ?? '1';
+  await run(`
+    INSERT INTO users (id, email, name, organization_id, password_hash, post_id, is_verified)
+    VALUES (?, ?, ?, ?, ?, NULL, TRUE)
+  `, [id, emailNorm, data.name.trim(), orgId, data.passwordHash]);
+
+  const user = await getUserById(id);
+  if (!user) {
+    throw new Error('Failed to create user');
+  }
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    organizationId: user.organizationId,
+    postId: null,
+    role: user.role,
+  };
+}
+
 /** Highest role from a list (Admin > Inspector > Department Head > Section Head > Employee). Used when user holds multiple posts. */
 const ROLE_ORDER = ['Employee', 'Section Head', 'Department Head', 'Inspector', 'Admin'] as const;
 function highestRole(roles: (string | null)[]): string {

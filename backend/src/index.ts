@@ -50,6 +50,7 @@ const authLimiter = rateLimit({
 });
 app.use('/api', generalLimiter);
 app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/signup', authLimiter);
 app.use(express.json());
 
 // Routes

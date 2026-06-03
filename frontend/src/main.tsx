@@ -11,7 +11,7 @@ setUnauthorizedHandler(() => {
   clearAuth()
   store.dispatch(logout())
   const path = typeof window !== 'undefined' ? window.location.pathname : ''
-  if (path !== '/login') {
+  if (path !== '/login' && path !== '/signup') {
     window.location.href = '/login'
   }
 })
