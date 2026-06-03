@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { setUser, setToken, setOrganizations } from '@/store/slices/authSlice';
 import { login, saveAuth } from '@/services/authService';
@@ -30,11 +30,7 @@ export default function Login() {
         dispatch(setOrganizations(defaultOrgs));
         saveAuth(token, user, defaultOrgs);
         navigate('/dashboard', { replace: true });
-      } catch (err: any) {
-        if (err && err.isVerified === false) {
-          navigate(`/verify-email?email=${encodeURIComponent(err.email || email)}`, { replace: true });
-          return;
-        }
+      } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Ошибка входа');
       } finally {
         setLoading(false);
@@ -78,12 +74,6 @@ export default function Login() {
               {loading ? 'Вход...' : 'Войти'}
             </Button>
           </form>
-          <p className="mt-4 text-sm text-textSecondary text-center">
-            Нет аккаунта?{' '}
-            <Link to="/signup" className="text-primary hover:underline">
-              Зарегистрироваться
-            </Link>
-          </p>
         </CardContent>
       </Card>
     </div>

@@ -103,7 +103,6 @@ const NAMES = [
   'getRecentAuditLog',
   'getAuditLogByPostId',
   'appendAuditLog',
-  'createUser',
   'getUserById',
   'getUserByPostId',
   'getUserByEmailForLogin',

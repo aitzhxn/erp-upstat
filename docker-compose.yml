@@ -31,7 +31,7 @@ services:
       PORT: 3001
       DATABASE_URL: postgresql://erp:${POSTGRES_PASSWORD:-erpupstat_change_me}@db:5432/erpupstat
       JWT_SECRET: ${JWT_SECRET:-erp-upstat-local-docker-jwt-secret-32chars-min!}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://up-stat.com,https://www.up-stat.com}
     volumes:
       - uploads_data:/app/uploads
     expose:

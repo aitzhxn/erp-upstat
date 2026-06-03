@@ -5,8 +5,6 @@ import AuthInit from './components/AuthInit';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
-import Signup from './pages/Signup';
-import VerifyEmail from './pages/VerifyEmail';
 import Dashboard from './pages/Dashboard';
 import OrgChart from './pages/OrgChart/OrgChartView';
 import InstructionsList from './pages/Instructions/InstructionsList';
@@ -25,8 +23,6 @@ function App() {
         <AuthInit>
           <Routes>
             <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
-            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route
               path="/"
               element={

@@ -17,7 +17,7 @@ export function setUnauthorizedHandler(handler: () => void): void {
   onUnauthorized = handler;
 }
 
-/** Call after successful login/signup so a future 401 can trigger logout again. */
+/** Call after successful login so a future 401 can trigger logout again. */
 export function resetUnauthorizedFlag(): void {
   unauthorizedHandled = false;
 }
@@ -26,10 +26,10 @@ function isAuthEndpoint(config: { url?: string; baseURL?: string }): boolean {
   const url = config.url ?? '';
   const base = config.baseURL ?? '';
   const path = url.startsWith('http') ? url : `${base.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
-  return path.includes('/auth/login') || path.includes('/auth/signup');
+  return path.includes('/auth/login');
 }
 
-// Add token to requests (key must match authService AUTH_TOKEN_KEY). Skip for login/signup.
+// Add token to requests (key must match authService AUTH_TOKEN_KEY). Skip for login.
 api.interceptors.request.use((config) => {
   if (isAuthEndpoint(config)) return config;
   const token = localStorage.getItem('auth_token');
@@ -52,7 +52,7 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Do not clear session / redirect on 401 from login or signup — that means "invalid credentials", show error in form
+    // Do not clear session / redirect on 401 from login — that means "invalid credentials", show error in form
     const isAuth = error.config ? isAuthEndpoint(error.config) : false;
     if (error.response?.status === 401 && onUnauthorized && !isAuth) {
       if (!unauthorizedHandled) {

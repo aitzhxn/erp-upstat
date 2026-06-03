@@ -58,7 +58,7 @@ async function main(): Promise<void> {
   );
 
   if (!user) {
-    console.error(`User with email "${email}" not found. Sign up first at /signup, then run this script again.`);
+    console.error(`User with email "${email}" not found. Create the user in the database (seed or admin), then run this script again.`);
     process.exit(1);
   }
 
